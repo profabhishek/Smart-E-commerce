@@ -1,9 +1,6 @@
 package com.smartcommerce.backend.auth.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 import lombok.*;
 
 @Entity
@@ -11,12 +8,11 @@ import lombok.*;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private long id;
+    private Long id;
 
     @Column(nullable = false, unique = true)
     private String email;
@@ -25,5 +21,15 @@ public class User {
 
     private String name;
     private String phone;
-    private String address;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "country", column = @Column(name = "address_country")),
+            @AttributeOverride(name = "state", column = @Column(name = "address_state")),
+            @AttributeOverride(name = "city", column = @Column(name = "address_city")),
+            @AttributeOverride(name = "area", column = @Column(name = "address_area")),
+            @AttributeOverride(name = "houseNo", column = @Column(name = "address_house_no")),
+            @AttributeOverride(name = "landmark", column = @Column(name = "address_landmark"))
+    })
+    private Address address;
 }
