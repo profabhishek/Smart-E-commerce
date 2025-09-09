@@ -85,7 +85,7 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- DevTools (optional, hot reload during development) -->
+        <!-- DevTools (optional, hot reload during development) check -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
