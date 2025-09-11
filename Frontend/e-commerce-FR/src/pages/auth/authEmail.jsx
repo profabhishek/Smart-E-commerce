@@ -4,16 +4,30 @@ export default function AuthEmail({ onSent }) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSend = async () => {
-    if (!email) return;
-    setLoading(true);
-    await fetch("/api/send-otp", {
+const handleSend = async () => {
+  if (!email) return;
+  setLoading(true);
+
+  try {
+    const res = await fetch("http://localhost:8080/api/auth/request-otp", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
     });
-    setLoading(false);
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.message || "Failed to send OTP");
+      return;
+    }
+
     onSent(email);
-  };
+  } catch (error) {
+    alert("Network error. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50">

@@ -21,15 +21,31 @@ export default function AuthOTP({ email, onVerify }) {
     }
   };
 
-  const handleVerify = async () => {
-    const code = otp.join("");
-    if (code.length !== 6) return;
-    await fetch("/api/verify-otp", {
+const handleVerify = async () => {
+  const code = otp.join("");
+  if (code.length !== 6) {
+    alert("Enter 6-digit OTP");
+    return;
+  }
+
+  try {
+    const res = await fetch("http://localhost:8080/api/auth/verify-otp", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, code }),
     });
-    onVerify();
-  };
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.message || "Invalid OTP");
+      return;
+    }
+
+    onVerify(); // success callback
+  } catch (error) {
+    alert("Network error. Please try again.");
+  }
+};
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
