@@ -1,7 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
   <component name="ChangeListManager">
-    <list default="true" id="293884e8-0340-495b-9893-eb7d639e9ab6" name="Changes" comment="" />
+    <list default="true" id="293884e8-0340-495b-9893-eb7d639e9ab6" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Frontend/e-commerce-FR/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/Frontend/e-commerce-FR/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Frontend/e-commerce-FR/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/Frontend/e-commerce-FR/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Frontend/e-commerce-FR/src/App.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/Frontend/e-commerce-FR/src/App.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Frontend/e-commerce-FR/src/index.css" beforeDir="false" afterPath="$PROJECT_DIR$/Frontend/e-commerce-FR/src/index.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Frontend/e-commerce-FR/vite.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/Frontend/e-commerce-FR/vite.config.js" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -10,21 +20,21 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
-  "lastFilter": {
-    "state": "OPEN",
-    "assignee": "profabhishek"
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;profabhishek&quot;
   }
-}]]></component>
+}</component>
   <component name="GithubPullRequestsUISettings"><![CDATA[{
   "selectedUrlAndAccountId": {
     "url": "https://github.com/profabhishek/Smart-E-commerce.git",
-    "accountId": "753b3b30-1a93-488a-aa35-7e2be273bc40"
+    "accountId": "89a463c3-c983-42e6-abe3-02f9fb45aa09"
   }
 }]]></component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 7
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 7
+}</component>
   <component name="ProjectId" id="32S5sSJbfcPJfsJzKClG8bgtFoi" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -35,9 +45,10 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
     "git-widget-placeholder": "main",
     "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "C:/Users/jhaab/Desktop/Smart-E-commerce"
+    "last_opened_file_path": "/Users/riturajmahapatra/Desktop/Personal Projects/untitled folder/Smart-E-commerce/Smart-E-commerce"
   }
 }]]></component>
   <component name="TaskManager">
