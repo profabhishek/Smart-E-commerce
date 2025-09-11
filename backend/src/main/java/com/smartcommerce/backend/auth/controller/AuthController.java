@@ -17,7 +17,7 @@ public class AuthController {
         this.authService = authService;
     }
 
-    // Request OTP
+    // Request OTP 1
     @PostMapping("/request-otp")
     public AuthResponse requestOtp(@RequestBody LoginRequest request) {
         authService.requestOtp(request.getEmail());
