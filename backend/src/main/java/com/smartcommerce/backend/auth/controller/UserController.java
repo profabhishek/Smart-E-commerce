@@ -1,10 +1,12 @@
 package com.smartcommerce.backend.auth.controller;
 
-
 import com.smartcommerce.backend.auth.dto.AuthResponse;
 import com.smartcommerce.backend.auth.dto.UpdateProfileRequest;
 import com.smartcommerce.backend.auth.entity.User;
 import com.smartcommerce.backend.auth.service.UserService;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,18 +19,28 @@ public class UserController {
         this.userService = userService;
     }
 
-    // Update user profile (Api bnegi idhr)
-    @PutMapping("/update-profile/{userId}")
-    public AuthResponse updateProfile(
-            @PathVariable Long userId,
-            @RequestBody UpdateProfileRequest request) {
-        userService.updateProfile(userId, request);
-        return new AuthResponse("Profile Updated successfully" , true);
+    // ✅ Get logged-in user's profile
+    @GetMapping("/profile")
+    public ResponseEntity<User> getProfile(Authentication authentication) {
+        User loggedInUser = (User) authentication.getPrincipal();
+        return ResponseEntity.ok(userService.getProfile(loggedInUser.getId()));
     }
 
-    //Get User profile
-    @GetMapping("/profile/{userId}")
-    public User getProfile(@PathVariable Long userId){
-        return userService.getProfile(userId);
+    // ✅ Update logged-in user's profile
+    @PutMapping("/profile")
+    public ResponseEntity<AuthResponse> updateProfile(
+            @Valid @RequestBody UpdateProfileRequest request,
+            Authentication authentication) {
+
+        User loggedInUser = (User) authentication.getPrincipal();
+        userService.updateProfile(loggedInUser.getId(), request);
+
+        // Build response with userId (no new token here)
+        AuthResponse res = new AuthResponse();
+        res.setMessage("Profile updated successfully");
+        res.setSuccess(true);
+        res.setUserId(loggedInUser.getId()); // we aren't rotating tokens on profile update
+
+        return ResponseEntity.ok(res);
     }
 }

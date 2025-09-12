@@ -27,9 +27,14 @@ public class AuthController {
     // Verify OTP
     @PostMapping("/verify-otp")
     public AuthResponse verifyOtp(@RequestBody OtpRequest request) {
+        System.out.println("verify-otp hit: " + request.getEmail() + " / " + request.getCode());
         User user = authService.verifyOtp(request.getEmail(), request.getCode());
-        // Return the user id so client can use it for profile updates (or you can return a token here)
-        String msg = "Login successful. userId=" + user.getId();
-        return new AuthResponse(msg, true);
+
+        // Generate JWT for this user
+        String token = authService.generateJwtToken(user);
+
+        // Return both token and userId
+        String msg = "Login successful";
+        return new AuthResponse(msg, true, user.getId());
     }
 }
