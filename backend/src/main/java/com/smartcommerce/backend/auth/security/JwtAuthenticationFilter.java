@@ -4,6 +4,7 @@ import com.smartcommerce.backend.auth.entity.User;
 import com.smartcommerce.backend.auth.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -31,35 +32,43 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        // Skip JWT validation for all /api/auth/** endpoints
+        return path.startsWith("/api/auth/");
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
         logger.info("➡️ Incoming request: {} {}", request.getMethod(), request.getRequestURI());
 
-        String path = request.getServletPath();
+        String token = null;
 
-        if (path.startsWith("/api/auth/")) {
-            logger.info("Skipping JWT filter for auth path: {}", path);
-            filterChain.doFilter(request, response);
-            return;
-        }
-
+        // 1️⃣ First try from Authorization header
         String header = request.getHeader("Authorization");
-        if (header == null) {
-            logger.warn("❌ No Authorization header present");
+        if (header != null && header.startsWith("Bearer ")) {
+            token = header.substring(7);
+            logger.info("🔑 Found JWT in Authorization header");
+        }
+
+        // 2️⃣ If not found, try from cookies
+        if (token == null && request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("jwt".equals(cookie.getName())) {
+                    token = cookie.getValue();
+                    logger.info("🔑 Found JWT in cookie");
+                }
+            }
+        }
+
+        if (token == null) {
+            logger.warn("❌ No JWT token found in request");
             filterChain.doFilter(request, response);
             return;
         }
-
-        if (!header.startsWith("Bearer ")) {
-            logger.warn("❌ Invalid Authorization header format: {}", header);
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        String token = header.substring(7);
-        logger.info("🔑 Extracted JWT: {}", token);
 
         try {
             if (jwtUtils.validateToken(token)) {
