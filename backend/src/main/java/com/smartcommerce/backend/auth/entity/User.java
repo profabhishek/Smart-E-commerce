@@ -3,6 +3,7 @@ package com.smartcommerce.backend.auth.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
@@ -27,6 +28,13 @@ public class User implements UserDetails {
     private String name;
     private String phone;
 
+    // 👇 Role field
+    @Column(nullable = false)
+    private String role = "USER"; // USER or ADMIN
+
+    @Column
+    private String password; // only required for ADMIN accounts
+
     @Embedded
     @AttributeOverrides({
             @AttributeOverride(name = "country", column = @Column(name = "address_country")),
@@ -42,12 +50,12 @@ public class User implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.emptyList(); // no roles yet, can add later
+        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role));
     }
 
     @Override
     public String getPassword() {
-        return null; // OTP login, no password
+        return password; // For admin accounts, password is stored
     }
 
     @Override
@@ -57,21 +65,21 @@ public class User implements UserDetails {
 
     @Override
     public boolean isAccountNonExpired() {
-        return true; // always active
+        return true;
     }
 
     @Override
     public boolean isAccountNonLocked() {
-        return true; // always unlocked
+        return true;
     }
 
     @Override
     public boolean isCredentialsNonExpired() {
-        return true; // OTP login, no credentials expiration
+        return true;
     }
 
     @Override
     public boolean isEnabled() {
-        return isVerified; // only verified users are enabled
+        return isVerified;
     }
 }

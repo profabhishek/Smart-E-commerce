@@ -10,6 +10,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -73,17 +75,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             if (jwtUtils.validateToken(token)) {
                 Long userId = jwtUtils.getUserIdFromToken(token);
-                logger.info("✅ Token valid. UserId = {}", userId);
+                String role = jwtUtils.getRoleFromToken(token);
+                logger.info("✅ Token valid. UserId = {}, Role = {}", userId, role);
 
                 User user = userRepo.findById(userId).orElse(null);
 
                 if (user != null) {
+                    // 👇 Assign authorities based on role
+                    GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
+
                     UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(user, null, List.of());
+                            new UsernamePasswordAuthenticationToken(user, null, List.of(authority));
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                     SecurityContextHolder.getContext().setAuthentication(authToken);
-                    logger.info("🔐 Authentication set for {}", user.getEmail());
+                    logger.info("🔐 Authentication set for {} with role {}", user.getEmail(), role);
                 } else {
                     logger.warn("❌ JWT valid but user not found: ID {}", userId);
                 }
@@ -96,5 +102,4 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         filterChain.doFilter(request, response);
     }
-
 }

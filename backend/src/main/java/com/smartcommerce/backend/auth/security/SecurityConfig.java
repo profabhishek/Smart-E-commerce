@@ -24,20 +24,29 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable()) // 👈 disable CSRF for all endpoints
+            .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                    // Public endpoints (OTP login/logout etc.)
                     .requestMatchers("/api/auth/**").permitAll()
-                    .requestMatchers("/api/user/**").authenticated()
+                    .requestMatchers("/api/admin/auth/**").permitAll()   // 👈 allow admin login/logout
+
+                    // User endpoints → must be authenticated as USER
+                    .requestMatchers("/api/user/**").hasRole("USER")
+
+                    // Admin endpoints → must be authenticated as ADMIN
+                    .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
+                    // Any other endpoints must be authenticated
                     .anyRequest().authenticated()
             )
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
+
         return http.build();
     }
 
-    // ✅ Define CORS rules
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
@@ -49,5 +58,10 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
+    }
+
+    @Bean
+    public org.springframework.security.crypto.password.PasswordEncoder passwordEncoder() {
+        return new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
     }
 }
