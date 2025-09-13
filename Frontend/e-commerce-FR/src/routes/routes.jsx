@@ -1,9 +1,12 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
-import AuthFlow from "../pages/auth/authFlow";
 import AuthEmail from "../pages/auth/authEmail";
 import AuthOTP from "../pages/auth/authOtp";
 import RequireOtpGate from "./RequireOtpGate";
 import Profile from "../pages/users/Profile";
+import Header from "../pages/Home/Header";
+import LoginPage from "../pages/admin/adminAuth/LoginPage";
+import ForgotPasswordPage from "../pages/admin/adminAuth/ForgotPasswordPage";
+import ResetPasswordPage from "../pages/admin/adminAuth/ResetPasswordPage";
 
 const router = createBrowserRouter([
   { path: "/", element: <Header /> },
