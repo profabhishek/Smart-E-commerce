@@ -7,17 +7,22 @@ import toast, { Toaster } from "react-hot-toast";
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState(""); // ✅ new state for persistent info
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setMessage(""); // clear previous message
 
     try {
-      const res = await fetch("http://localhost:8080/api/admin/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
+      const res = await fetch(
+        "http://localhost:8080/api/admin/auth/forgot-password",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        }
+      );
 
       const data = await res.json();
 
@@ -25,6 +30,9 @@ export default function ForgotPasswordPage() {
         toast.error(data.message || "Failed to send reset link ❌");
       } else {
         toast.success("Password reset link sent 📧");
+        setMessage(
+          "✅ Please check your email inbox (and spam folder) for the reset link."
+        );
       }
     } catch (err) {
       console.error("Forgot password error:", err);
@@ -36,7 +44,9 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
-      <Toaster position="top-center" />
+      {/* ✅ increased toast stay time */}
+      <Toaster position="top-center" toastOptions={{ duration: 6000 }} />
+
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-sm bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg space-y-4"
@@ -60,6 +70,11 @@ export default function ForgotPasswordPage() {
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? "Sending..." : "Send Reset Link"}
         </Button>
+
+        {/* ✅ Persistent success message */}
+        {message && (
+          <p className="text-sm text-green-600 text-center mt-2">{message}</p>
+        )}
 
         <p className="text-sm text-center text-gray-500 dark:text-gray-400">
           Remembered?{" "}
