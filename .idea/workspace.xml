@@ -19,12 +19,12 @@
     &quot;assignee&quot;: &quot;profabhishek&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings">{
-  &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/profabhishek/Smart-E-commerce.git&quot;,
-    &quot;accountId&quot;: &quot;753b3b30-1a93-488a-aa35-7e2be273bc40&quot;
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "git@github.com:profabhishek/Smart-E-commerce.git",
+    "accountId": "89a463c3-c983-42e6-abe3-02f9fb45aa09"
   }
-}</component>
+}]]></component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 7
 }</component>

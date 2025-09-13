@@ -5,7 +5,7 @@ import AuthOTP from "../pages/auth/authOtp";
 import RequireOtpGate from "./RequireOtpGate";
 import Profile from "../pages/users/Profile";
 
-export const router = createBrowserRouter([
+const router = createBrowserRouter([
   { path: "/", element: <AuthFlow /> },
   { path: "/email", element: <AuthEmail /> },
   {

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import AuthEmail from "./authEmail";
 import AuthOTP from "./authOtp";
 
 export default function AuthFlow() {
@@ -54,25 +53,24 @@ export default function AuthFlow() {
       <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow">
         {auth ? (
           <>
-            <h1 className="mb-2 text-center text-2xl font-semibold">Welcome!</h1>
+            <h1 className="mb-2 text-center text-2xl font-semibold">
+              Welcome!
+            </h1>
             <p className="text-center text-gray-600 mb-4">
               You are logged in as <strong>{auth.email}</strong>
             </p>
             <button
               onClick={handleLogout}
-              className="w-full rounded-lg bg-red-500 py-2 text-white hover:bg-red-600"
-            >
+              className="w-full rounded-lg bg-red-500 py-2 text-white hover:bg-red-600">
               Logout
             </button>
             <br />
             <br />
             <button
               onClick={() => navigate("/profile")}
-              className="w-full rounded-lg bg-green-600 py-2 text-white hover:bg-green-700 mb-2"
-            >
+              className="w-full rounded-lg bg-green-600 py-2 text-white hover:bg-green-700 mb-2">
               Go to Profile
             </button>
-
           </>
         ) : (
           <>
@@ -81,19 +79,16 @@ export default function AuthFlow() {
             </h1>
             <button
               onClick={() => navigate("/email")}
-              className="w-full rounded-lg bg-blue-600 py-2 text-white hover:bg-blue-700"
-            >
+              className="w-full rounded-lg bg-blue-600 py-2 text-white hover:bg-blue-700">
               Sign In
             </button>
             <br />
             <br />
             <button
               onClick={() => navigate("/profile")}
-              className="w-full rounded-lg bg-green-600 py-2 text-white hover:bg-green-700 mb-2"
-            >
+              className="w-full rounded-lg bg-green-600 py-2 text-white hover:bg-green-700 mb-2">
               Go to Profile
             </button>
-
           </>
         )}
       </div>

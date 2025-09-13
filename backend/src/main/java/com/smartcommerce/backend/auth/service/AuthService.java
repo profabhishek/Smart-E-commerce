@@ -40,6 +40,7 @@
                 User u = new User();
                 u.setEmail(email);
                 u.setVerified(false);
+                u.setRole("USER");
                 return userRepo.save(u);
             });
 
@@ -93,6 +94,6 @@
          * Generate JWT token for user
          */
         public String generateJwtToken(User user) {
-            return jwtUtils.generateToken(user.getId()); // 👈 stable secret used
+            return jwtUtils.generateToken(user.getId(), user.getRole()); // 👈 stable secret used
         }
     }
