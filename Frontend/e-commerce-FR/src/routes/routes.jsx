@@ -4,12 +4,9 @@ import AuthEmail from "../pages/auth/authEmail";
 import AuthOTP from "../pages/auth/authOtp";
 import RequireOtpGate from "./RequireOtpGate";
 import Profile from "../pages/users/Profile";
-import LoginPage from "../pages/admin/adminAuth/LoginPage";
-import ForgotPasswordPage from "../pages/admin/adminAuth/ForgotPasswordPage";
-import ResetPasswordPage from "../pages/admin/adminAuth/ResetPasswordPage";
 
 const router = createBrowserRouter([
-  { path: "/", element: <AuthFlow /> },
+  { path: "/", element: <Header /> },
   { path: "/email", element: <AuthEmail /> },
   {
     path: "/otp",
