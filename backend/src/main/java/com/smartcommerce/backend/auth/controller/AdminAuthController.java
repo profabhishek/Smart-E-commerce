@@ -2,9 +2,14 @@ package com.smartcommerce.backend.auth.controller;
 
 import com.smartcommerce.backend.auth.dto.AdminLoginRequest;
 import com.smartcommerce.backend.auth.dto.AuthResponse;
+import com.smartcommerce.backend.auth.dto.ForgotPasswordRequest;
+import com.smartcommerce.backend.auth.dto.ResetPasswordRequest;
 import com.smartcommerce.backend.auth.entity.User;
 import com.smartcommerce.backend.auth.repository.UserRepository;
 import com.smartcommerce.backend.auth.security.JwtUtils;
+import com.smartcommerce.backend.auth.service.PasswordResetService;
+import com.smartcommerce.backend.auth.service.RecaptchaService;
+import com.smartcommerce.backend.auth.service.EmailService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -17,16 +22,25 @@ import jakarta.servlet.http.HttpServletResponse;
 @RequestMapping("/api/admin/auth")
 public class AdminAuthController {
 
+    private final PasswordResetService passwordResetService;
     private final UserRepository userRepo;
     private final JwtUtils jwtUtils;
     private final PasswordEncoder passwordEncoder;
+    private final RecaptchaService recaptchaService;
+    private final EmailService emailService;
 
     public AdminAuthController(UserRepository userRepo,
                                JwtUtils jwtUtils,
-                               PasswordEncoder passwordEncoder) {
+                               PasswordEncoder passwordEncoder,
+                               RecaptchaService recaptchaService,
+                               EmailService emailService,
+                               PasswordResetService passwordResetService) {
         this.userRepo = userRepo;
         this.jwtUtils = jwtUtils;
         this.passwordEncoder = passwordEncoder;
+        this.recaptchaService = recaptchaService;
+        this.emailService = emailService;
+        this.passwordResetService = passwordResetService;
     }
 
     // ------------------ Admin Login ------------------
@@ -34,23 +48,22 @@ public class AdminAuthController {
     public ResponseEntity<AuthResponse> login(@RequestBody AdminLoginRequest request,
                                               HttpServletResponse response) {
 
-        User admin = userRepo.findByEmail(request.getEmail()).orElse(null);
-
-        // Debug logs
-        System.out.println("➡️ Admin login attempt: " + request.getEmail());
-        if (admin != null) {
-            System.out.println("✅ Found admin in DB: " + admin.getEmail() + ", role=" + admin.getRole());
-            System.out.println("🔑 Password matches? " + passwordEncoder.matches(request.getPassword(), admin.getPassword()));
+        // ✅ Step 1: Verify reCAPTCHA token
+        if (!recaptchaService.verifyToken(request.getRecaptchaToken())) {
+            return ResponseEntity.status(403)
+                    .body(new AuthResponse("reCAPTCHA verification failed", false));
         }
 
-        // Check if user exists, role is ADMIN, and password matches
+        // ✅ Step 2: Find admin user
+        User admin = userRepo.findByEmail(request.getEmail()).orElse(null);
+
         if (admin == null || !"ADMIN".equals(admin.getRole()) ||
                 !passwordEncoder.matches(request.getPassword(), admin.getPassword())) {
             return ResponseEntity.status(401)
                     .body(new AuthResponse("Invalid admin credentials", false));
         }
 
-        // ✅ Generate JWT with ADMIN role
+        // ✅ Step 3: Generate JWT
         String token = jwtUtils.generateToken(admin.getId(), admin.getRole());
 
         // ✅ Put JWT in httpOnly cookie
@@ -69,6 +82,15 @@ public class AdminAuthController {
         );
     }
 
+    // ------------------ Forgot Password ------------------
+    @PostMapping("/forgot-password")
+    public ResponseEntity<AuthResponse> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        boolean sent = emailService.sendPasswordReset(request.getEmail());
+        if (sent) {
+            return ResponseEntity.ok(new AuthResponse("Password reset link sent", true));
+        }
+        return ResponseEntity.badRequest().body(new AuthResponse("Email not found or failed to send", false));
+    }
 
     // ------------------ Admin Logout ------------------
     @PostMapping("/logout")
@@ -83,5 +105,10 @@ public class AdminAuthController {
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<AuthResponse> resetPassword(@RequestBody ResetPasswordRequest request) {
+        return passwordResetService.resetPassword(request);
     }
 }
