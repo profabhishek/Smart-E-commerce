@@ -4,9 +4,10 @@ import AuthEmail from "../pages/auth/authEmail";
 import AuthOTP from "../pages/auth/authOtp";
 import RequireOtpGate from "./RequireOtpGate";
 import Profile from "../pages/users/Profile";
+import Header from "../pages/Home/Header";
 
 const router = createBrowserRouter([
-  { path: "/", element: <AuthFlow /> },
+  { path: "/", element: <Header /> },
   { path: "/email", element: <AuthEmail /> },
   {
     path: "/otp",
