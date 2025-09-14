@@ -3,13 +3,14 @@ import AuthEmail from "../pages/auth/authEmail";
 import AuthOTP from "../pages/auth/authOtp";
 import RequireOtpGate from "./RequireOtpGate";
 import Profile from "../pages/users/Profile";
-import Header from "../pages/Home/Header";
 import LoginPage from "../pages/admin/adminAuth/LoginPage";
 import ForgotPasswordPage from "../pages/admin/adminAuth/ForgotPasswordPage";
 import ResetPasswordPage from "../pages/admin/adminAuth/ResetPasswordPage";
+import AdminDashboard from "../pages/admin/dashboard/AdminDashboard";
+import HomePage from "../pages/Home/HomePage";
 
 const router = createBrowserRouter([
-  { path: "/", element: <Header /> },
+  { path: "/", element: <HomePage /> },
   { path: "/email", element: <AuthEmail /> },
   {
     path: "/otp",
@@ -23,6 +24,7 @@ const router = createBrowserRouter([
   { path: "/admin/login", element: <LoginPage /> },
   { path: "/admin/forgot-password", element: <ForgotPasswordPage /> },
   { path: "/admin/reset-password", element: <ResetPasswordPage /> },
+  { path: "/admin/dashboard", element: <AdminDashboard /> },
 ]);
 
 export default function RoutesRoot() {

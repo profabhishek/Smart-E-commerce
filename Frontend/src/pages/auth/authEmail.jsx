@@ -1,10 +1,57 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 export default function AuthEmail() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const navigate = useNavigate();
+
+  // 🔐 Auto-redirect if already logged in as USER
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkSession = async () => {
+      // 1) Fast path: localStorage says user is logged in
+      const role = localStorage.getItem("role");
+      if (role === "ROLE_USER") {
+        navigate("/", { replace: true });
+        return;
+      }
+
+      // 2) Slow path: ask backend (uses httpOnly cookie `user_jwt`)
+      try {
+        const res = await fetch("http://localhost:8080/api/user/profile", {
+          method: "GET",
+          credentials: "include",
+        });
+
+        if (!cancelled && res.ok) {
+          const user = await res.json();
+          // Persist minimal session info for UI
+          localStorage.setItem("role", "ROLE_USER");
+          if (user?.name && user.name.trim()) {
+            localStorage.setItem("name", user.name);
+          } else if (user?.email) {
+            localStorage.setItem("name", user.email.split("@")[0]);
+          } else {
+            localStorage.setItem("name", "User");
+          }
+          navigate("/", { replace: true });
+          return;
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setCheckingSession(false);
+      }
+    };
+
+    checkSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
 
   const handleSend = async () => {
     const cleanEmail = email.trim();
@@ -14,13 +61,12 @@ export default function AuthEmail() {
     }
 
     setLoading(true);
-
     try {
       const res = await fetch("http://localhost:8080/api/auth/request-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: cleanEmail }),
-        credentials: "include", // 👈 keep consistent
+        credentials: "include",
       });
 
       if (!res.ok) {
@@ -28,24 +74,33 @@ export default function AuthEmail() {
         try {
           const err = await res.json();
           errMsg = err.message || errMsg;
-        } catch {
-          // ignore parsing error
-        }
+        } catch {}
         alert(errMsg);
         return;
       }
 
-      // ✅ Save email to sessionStorage for OTP step
+      // Store for OTP step
       sessionStorage.setItem("pendingEmail", cleanEmail);
-
-      // Navigate to OTP page
-      navigate("/otp");
-    } catch (error) {
+      navigate("/otp", { replace: true });
+    } catch {
       alert("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (checkingSession) {
+    // small skeleton while we check server session
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow animate-pulse">
+          <div className="h-6 w-32 bg-gray-200 rounded mb-6" />
+          <div className="h-10 w-full bg-gray-200 rounded mb-4" />
+          <div className="h-10 w-full bg-gray-200 rounded" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50">

@@ -13,6 +13,7 @@ public class AuthResponse {
     private String token;
     private Long userId;
     private String role;   // 👈 role included for frontend redirects
+    private String name;
 
     // Minimal response (without token/role/userId)
     public AuthResponse(String message, boolean success) {

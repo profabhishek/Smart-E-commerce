@@ -79,7 +79,7 @@ public class AdminAuthController {
 
         // ✅ Step 4: Return full AuthResponse (token + userId + role)
         return ResponseEntity.ok(
-                new AuthResponse("Admin login successful", true, token, admin.getId(), "ROLE_ADMIN")
+                new AuthResponse("Admin login successful", true, token, admin.getId(), "ROLE_ADMIN", admin.getName())
         );
     }
 

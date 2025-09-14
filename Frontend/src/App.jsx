@@ -1,10 +1,29 @@
-import { Button } from "@/components/ui/button";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import ProtectedRoute from "./components/ProtectedRoute";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminLogin from "./pages/AdminLogin";
 
 function App() {
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center">
-      <Button>Click me</Button>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        {/* Admin Login */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+
+        {/* Protected Admin Dashboard */}
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute requiredRole="ROLE_ADMIN">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Default route (optional) */}
+        <Route path="*" element={<AdminLogin />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
