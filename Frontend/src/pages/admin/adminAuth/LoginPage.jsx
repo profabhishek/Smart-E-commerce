@@ -1,3 +1,4 @@
+import { Eye, EyeOff } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
 export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // 👈 toggle state
   const navigate = useNavigate();
   const { executeRecaptcha } = useGoogleReCaptcha();
 
@@ -26,30 +28,24 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!executeRecaptcha) {
       toast.error("Recaptcha not yet available ❌");
       return;
     }
-
     setLoading(true);
-
     try {
       const recaptchaToken = await executeRecaptcha("admin_login");
-
       const res = await fetch("http://localhost:8080/api/admin/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include", // send cookies
+        credentials: "include",
         body: JSON.stringify({
           email: form.email,
           password: form.password,
           recaptchaToken,
         }),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
           toast.error("Invalid admin credentials ❌");
@@ -57,11 +53,9 @@ export default function LoginPage() {
           toast.error(data.message || "Login failed ❌");
         }
       } else {
-        // ✅ Save token + role for ProtectedRoute
         localStorage.setItem("token", data.token);
-        localStorage.setItem("role", data.role);  
+        localStorage.setItem("role", data.role);
         localStorage.setItem("name", data.name || "Admin");
-        
         toast.success("Login successful 🚀");
         setTimeout(() => navigate("/admin/dashboard"), 800);
       }
@@ -75,38 +69,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
-      {/* 🔥 Styled toaster */}
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: "#fff",
-            color: "#111827",
-            border: "1px solid #e5e7eb",
-            borderRadius: "0.75rem",
-            padding: "12px 16px",
-            fontSize: "14px",
-            fontWeight: "500",
-            boxShadow:
-              "0 4px 6px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.1)",
-          },
-          success: {
-            iconTheme: {
-              primary: "#16a34a",
-              secondary: "#fff",
-            },
-          },
-          error: {
-            iconTheme: {
-              primary: "#dc2626",
-              secondary: "#fff",
-            },
-          },
-        }}
-      />
-
-      {/* 🔑 Login Form */}
+      <Toaster position="top-center" />
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-sm bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg space-y-4"
@@ -115,6 +78,7 @@ export default function LoginPage() {
           Admin Login
         </h2>
 
+        {/* Email field */}
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <Input
@@ -128,20 +92,29 @@ export default function LoginPage() {
           />
         </div>
 
-        <div className="space-y-2">
+        {/* Password field with interactive eye toggle */}
+        <div className="space-y-2 relative">
           <Label htmlFor="password">Password</Label>
           <Input
             id="password"
             name="password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             placeholder="Enter password"
             value={form.password}
             onChange={handleChange}
             required
+            className="pr-10"
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => !prev)}
+            className="absolute right-3 top-7.5 text-gray-500 hover:text-green-600 transition-transform transform hover:scale-110 active:scale-95 cursor-pointer"
+          >
+            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+          </button>
 
           {/* 🔹 Forgot password link */}
-          <div className="flex justify-end">
+          <div className="flex justify-end mt-1">
             <button
               type="button"
               onClick={() => navigate("/admin/forgot-password")}

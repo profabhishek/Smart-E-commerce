@@ -101,10 +101,22 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="bg-gray-900 text-gray-300 py-6 mt-auto">
-        <div className="container mx-auto px-6 text-center">
+        <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between text-center md:text-left">
+          {/* Left side: copyright */}
           <p>&copy; {new Date().getFullYear()} Poster Pataka. All rights reserved.</p>
+
+          {/* Right side: admin login link */}
+          <p className="mt-2 md:mt-0">
+            <a
+              href="/admin/login"
+              className="text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              Admin Login
+            </a>
+          </p>
         </div>
       </footer>
+
     </div>
   );
 }
