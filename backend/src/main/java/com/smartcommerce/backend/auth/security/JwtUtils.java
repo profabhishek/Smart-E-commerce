@@ -23,7 +23,7 @@ public class JwtUtils {
 
         return Jwts.builder()
                 .setSubject(userId.toString())
-                .claim("role", role)  // 👈 Add role claim
+                .claim("role", "ROLE_" + role)  // ✅ Prefix role once
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
                 .signWith(key)
@@ -40,7 +40,6 @@ public class JwtUtils {
         return Long.parseLong(claims.getSubject());
     }
 
-    // 👇 New helper to extract role
     public String getRoleFromToken(String token) {
         Claims claims = Jwts.parserBuilder()
                 .setSigningKey(key)

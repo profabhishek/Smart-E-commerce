@@ -24,25 +24,19 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                    // Public endpoints (OTP login/logout etc.)
-                    .requestMatchers("/api/auth/**").permitAll()
-                    .requestMatchers("/api/admin/auth/**").permitAll()   // 👈 allow admin login/logout
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/**").permitAll()         // OTP login (user)
+                        .requestMatchers("/api/admin/auth/**").permitAll()   // Admin login
 
-                    // User endpoints → must be authenticated as USER
-                    .requestMatchers("/api/user/**").hasRole("USER")
+                        .requestMatchers("/api/user/**").hasRole("USER")     // User endpoints
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")   // Admin endpoints
 
-                    // Admin endpoints → must be authenticated as ADMIN
-                    .requestMatchers("/api/admin/**").hasRole("ADMIN")
-
-                    // Any other endpoints must be authenticated
-                    .anyRequest().authenticated()
-            )
-            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
-
+                        .anyRequest().authenticated()
+                )
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -50,7 +44,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173")); // frontend origin
+        config.setAllowedOrigins(List.of("http://localhost:5173")); // React frontend
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

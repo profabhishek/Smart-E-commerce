@@ -36,8 +36,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
-        // Skip JWT validation for all /api/auth/** endpoints
-        return path.startsWith("/api/auth/");
+        // Skip JWT validation for login endpoints
+        return path.startsWith("/api/auth/") || path.startsWith("/api/admin/auth/");
     }
 
     @Override
@@ -49,25 +49,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = null;
 
-        // 1️⃣ First try from Authorization header
+        // 1️⃣ Authorization header
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
             token = header.substring(7);
             logger.info("🔑 Found JWT in Authorization header");
         }
 
-        // 2️⃣ If not found, try from cookies
+        // 2️⃣ Cookie fallback: check both admin_jwt and user_jwt
         if (token == null && request.getCookies() != null) {
             for (Cookie cookie : request.getCookies()) {
-                if ("jwt".equals(cookie.getName())) {
+                if ("admin_jwt".equals(cookie.getName()) || "user_jwt".equals(cookie.getName())) {
                     token = cookie.getValue();
-                    logger.info("🔑 Found JWT in cookie");
+                    logger.info("🔑 Found JWT in cookie: {}", cookie.getName());
                 }
             }
         }
 
         if (token == null) {
-            logger.warn("❌ No JWT token found in request");
             filterChain.doFilter(request, response);
             return;
         }
@@ -76,13 +75,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (jwtUtils.validateToken(token)) {
                 Long userId = jwtUtils.getUserIdFromToken(token);
                 String role = jwtUtils.getRoleFromToken(token);
-                logger.info("✅ Token valid. UserId = {}, Role = {}", userId, role);
 
                 User user = userRepo.findById(userId).orElse(null);
 
                 if (user != null) {
-                    // 👇 Assign authorities based on role
-                    GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
+                    GrantedAuthority authority = new SimpleGrantedAuthority(role); // role already has ROLE_ prefix
 
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(user, null, List.of(authority));
@@ -90,11 +87,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                     logger.info("🔐 Authentication set for {} with role {}", user.getEmail(), role);
-                } else {
-                    logger.warn("❌ JWT valid but user not found: ID {}", userId);
                 }
-            } else {
-                logger.warn("❌ Invalid JWT token");
             }
         } catch (Exception e) {
             logger.error("❌ Error parsing JWT: {}", e.getMessage());

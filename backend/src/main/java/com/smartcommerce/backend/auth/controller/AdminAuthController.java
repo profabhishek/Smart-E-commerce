@@ -66,8 +66,8 @@ public class AdminAuthController {
         // ✅ Step 3: Generate JWT
         String token = jwtUtils.generateToken(admin.getId(), admin.getRole());
 
-        // ✅ Put JWT in httpOnly cookie
-        ResponseCookie cookie = ResponseCookie.from("jwt", token)
+        // ✅ Put JWT in httpOnly cookie (admin_jwt)
+        ResponseCookie cookie = ResponseCookie.from("admin_jwt", token)
                 .httpOnly(true)
                 .secure(false) // ⚠️ set true in production (HTTPS)
                 .path("/")
@@ -77,8 +77,9 @@ public class AdminAuthController {
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
+        // ✅ Step 4: Return full AuthResponse (token + userId + role)
         return ResponseEntity.ok(
-                new AuthResponse("Admin login successful", true, admin.getId())
+                new AuthResponse("Admin login successful", true, token, admin.getId(), "ROLE_ADMIN")
         );
     }
 
@@ -95,9 +96,9 @@ public class AdminAuthController {
     // ------------------ Admin Logout ------------------
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletResponse response) {
-        ResponseCookie cookie = ResponseCookie.from("jwt", "")
+        ResponseCookie cookie = ResponseCookie.from("admin_jwt", "")
                 .httpOnly(true)
-                .secure(false) // ⚠️ true in production
+                .secure(false) // ⚠️ set true in production
                 .path("/")
                 .maxAge(0) // expire immediately
                 .sameSite("Lax")

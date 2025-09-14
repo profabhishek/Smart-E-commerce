@@ -39,33 +39,38 @@ public class AuthController {
         // Generate JWT
         String token = authService.generateJwtToken(user);
 
-        // ✅ Put JWT into httpOnly cookie
-        ResponseCookie cookie = ResponseCookie.from("jwt", token)
+        // ✅ Use "user_jwt" instead of "jwt"
+        ResponseCookie cookie = ResponseCookie.from("user_jwt", token)
                 .httpOnly(true)
-                .secure(false) // ⚠️ false for localhost, true in production
+                .secure(false) // ⚠️ set true in production
                 .path("/")
-                .maxAge(24 * 60 * 60) // 1 day expiry
-                .sameSite("Lax")      // works with localhost + React
+                .maxAge(24 * 60 * 60) // 1 day
+                .sameSite("Lax")
                 .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-        // ✅ Return success response WITHOUT token
-        String msg = "Login successful";
-        AuthResponse authResponse = new AuthResponse(msg, true, user.getId());
+        // ✅ Return role + token for frontend redirection
+        AuthResponse authResponse = new AuthResponse(
+                "User login successful",
+                true,
+                token,
+                user.getId(),
+                "ROLE_USER"
+        );
 
         return ResponseEntity.ok(authResponse);
     }
 
-
     // Logout method
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletResponse response) {
-        ResponseCookie cookie = ResponseCookie.from("jwt", "")
+        // ✅ Expire only the "user_jwt" cookie
+        ResponseCookie cookie = ResponseCookie.from("user_jwt", "")
                 .httpOnly(true)
                 .secure(false) // ⚠️ true in prod
                 .path("/")
-                .maxAge(0)     // 👈 expire immediately
+                .maxAge(0) // expire immediately
                 .sameSite("Lax")
                 .build();
 

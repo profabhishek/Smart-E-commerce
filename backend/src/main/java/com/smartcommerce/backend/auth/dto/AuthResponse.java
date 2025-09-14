@@ -5,21 +5,22 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 public class AuthResponse {
     private String message;
     private boolean success;
     private String token;
     private Long userId;
+    private String role;   // 👈 role included for frontend redirects
 
-    // When you don’t want to return token or userId
+    // Minimal response (without token/role/userId)
     public AuthResponse(String message, boolean success) {
         this.message = message;
         this.success = success;
     }
 
-    // ✅ New constructor → message + success + userId
+    // Response with message + success + userId
     public AuthResponse(String message, boolean success, Long userId) {
         this.message = message;
         this.success = success;

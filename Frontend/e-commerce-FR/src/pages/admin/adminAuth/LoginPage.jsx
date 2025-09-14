@@ -46,7 +46,7 @@ export default function LoginPage() {
         toast.error(data.message || "Login failed ❌");
       } else {
         toast.success("Login successful 🚀");
-        setTimeout(() => navigate("/admin"), 1000);
+        setTimeout(() => navigate("/admin/dashboard"), 1000);
       }
     } catch (err) {
       console.error("Login error:", err);
