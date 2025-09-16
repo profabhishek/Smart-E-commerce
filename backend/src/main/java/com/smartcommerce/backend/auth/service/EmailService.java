@@ -4,9 +4,11 @@ import com.smartcommerce.backend.auth.entity.PasswordResetToken;
 import com.smartcommerce.backend.auth.entity.User;
 import com.smartcommerce.backend.auth.repository.PasswordResetTokenRepository;
 import com.smartcommerce.backend.auth.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -14,6 +16,10 @@ import java.util.UUID;
 
 @Service
 public class EmailService {
+
+    @Value("${app.base.url}")
+    private String baseUrl;
+
 
     private final JavaMailSender mailSender;
     private final UserRepository userRepo;
@@ -53,6 +59,7 @@ public class EmailService {
     }
 
     // ------------------ Forgot Password ------------------
+    @Transactional
     public boolean sendPasswordReset(String email) {
         Optional<User> userOpt = userRepo.findByEmail(email);
         if (userOpt.isEmpty() || !"ADMIN".equals(userOpt.get().getRole())) {
@@ -70,7 +77,7 @@ public class EmailService {
         tokenEntity.setExpiryTime(LocalDateTime.now().plusMinutes(15));
         tokenRepo.save(tokenEntity);
 
-        String resetLink = "http://localhost:5173/admin/reset-password?token=" + resetToken;
+        String resetLink = baseUrl + "/admin/reset-password?token=" + resetToken;
 
         try {
             if (mailSender != null) {
