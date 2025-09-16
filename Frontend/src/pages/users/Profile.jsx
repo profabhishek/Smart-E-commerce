@@ -321,9 +321,9 @@ export default function Profile() {
 
           <div className="grid gap-3 pt-3">
             {/* House & Area side by side */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-5">
               <div>
-                <Label htmlFor="houseNo">House No.</Label>
+                <Label className="mb-2" htmlFor="houseNo">House No.</Label>
                 <Input
                   id="houseNo"
                   value={editingAddress?.houseNo || ""}
@@ -335,7 +335,7 @@ export default function Profile() {
                 />
               </div>
               <div>
-                <Label htmlFor="area">Area</Label>
+                <Label className="mb-2" htmlFor="area">Area</Label>
                 <Input
                   id="area"
                   value={editingAddress?.area || ""}
@@ -350,7 +350,7 @@ export default function Profile() {
 
             {/* Landmark */}
             <div>
-              <Label htmlFor="landmark">Landmark</Label>
+              <Label className="mb-2" htmlFor="landmark">Landmark</Label>
               <Input
                 id="landmark"
                 value={editingAddress?.landmark || ""}
@@ -365,7 +365,7 @@ export default function Profile() {
             {/* City & Pincode side by side */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="city">City</Label>
+                <Label className="mb-2" htmlFor="city">City</Label>
                 <Input
                   id="city"
                   value={editingAddress?.city || ""}
@@ -377,7 +377,7 @@ export default function Profile() {
                 />
               </div>
               <div>
-                <Label htmlFor="pinCode">Pin Code</Label>
+                <Label className="mb-2" htmlFor="pinCode">Pin Code</Label>
                 <Input
                   id="pinCode"
                   value={editingAddress?.pinCode || ""}
@@ -392,7 +392,7 @@ export default function Profile() {
 
             {/* Country */}
             <div>
-              <Label htmlFor="country">Country</Label>
+              <Label className="mb-2" htmlFor="country">Country</Label>
               <select
                 id="country"
                 className="w-full h-10 text-sm rounded-md border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
@@ -416,7 +416,7 @@ export default function Profile() {
 
             {/* State */}
             <div>
-              <Label htmlFor="state">State</Label>
+              <Label className="mb-2" htmlFor="state">State</Label>
               <select
                 id="state"
                 className="w-full h-10 text-sm rounded-md border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
