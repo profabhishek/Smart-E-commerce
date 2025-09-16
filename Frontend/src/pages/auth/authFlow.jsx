@@ -15,9 +15,11 @@ export default function AuthFlow() {
 
   const navigate = useNavigate();
 
+  const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
   const handleLogout = async () => {
     // Tell backend to clear cookie
-    await fetch("http://localhost:8080/api/auth/logout", {
+    await fetch(`${VITE_API_BASE_URL}/api/auth/logout`, {
       method: "POST",
       credentials: "include",
     });

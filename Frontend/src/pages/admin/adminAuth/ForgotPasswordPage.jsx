@@ -9,6 +9,7 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(""); // ✅ new state for persistent info
 
+  const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -16,7 +17,7 @@ export default function ForgotPasswordPage() {
 
     try {
       const res = await fetch(
-        "http://localhost:8080/api/admin/auth/forgot-password",
+        `${VITE_API_BASE_URL}/api/admin/auth/forgot-password`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

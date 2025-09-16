@@ -7,7 +7,6 @@ import {
   BarChart3,
   LogOut,
   Settings,
-  DollarSign,
   Package,
   IndianRupee,
 } from "lucide-react";
@@ -15,6 +14,7 @@ import {
 export default function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
+  const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // ✅ Auto-redirect if not logged in as admin
   useEffect(() => {
@@ -27,7 +27,7 @@ export default function AdminDashboard() {
   // ✅ Logout function (calls backend API)
     const handleLogout = async () => {
     try {
-        await fetch("http://localhost:8080/api/admin/auth/logout", {
+        await fetch(`${VITE_API_BASE_URL}/api/admin/auth/logout`, {
         method: "POST",
         credentials: "include",
         });

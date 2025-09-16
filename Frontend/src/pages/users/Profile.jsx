@@ -6,13 +6,14 @@ export default function Profile() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+    const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   useEffect(() => {
     // Same endpoint, but now only for *display* purposes.
     // Header already fetched it, so this will usually hit browser cache.
     const fetchProfile = async () => {
       try {
-        const res = await fetch("http://localhost:8080/api/user/profile", {
+        const res = await fetch(`${VITE_API_BASE_URL}/api/user/profile`, {
           method: "GET",
           credentials: "include",
         });
