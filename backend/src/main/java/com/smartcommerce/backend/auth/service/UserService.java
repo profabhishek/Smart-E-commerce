@@ -1,6 +1,8 @@
 package com.smartcommerce.backend.auth.service;
 
+import com.smartcommerce.backend.auth.dto.AddressDTO;
 import com.smartcommerce.backend.auth.dto.UpdateProfileRequest;
+import com.smartcommerce.backend.auth.entity.Address;
 import com.smartcommerce.backend.auth.entity.User;
 import com.smartcommerce.backend.auth.repository.UserRepository;
 import org.springframework.stereotype.Service;
@@ -33,8 +35,25 @@ public class UserService {
         if (request.getPhone() != null && !request.getPhone().isBlank()) {
             user.setPhone(request.getPhone());
         }
-        if (request.getAddress() != null) {
-            user.setAddress(request.getAddress());
+
+        // ✅ Handle addresses
+        if (request.getAddresses() != null) {
+            // Clear existing addresses and rebuild list
+            user.getAddresses().clear();
+
+            for (AddressDTO dto : request.getAddresses()) {
+                Address address = new Address();
+                address.setHouseNo(dto.getHouseNo());
+                address.setArea(dto.getArea());
+                address.setLandmark(dto.getLandmark());
+                address.setCity(dto.getCity());
+                address.setState(dto.getState());
+                address.setCountry(dto.getCountry());
+                address.setPinCode(dto.getPinCode());
+                address.setUser(user); // establish relationship
+
+                user.getAddresses().add(address);
+            }
         }
 
         userRepository.save(user);

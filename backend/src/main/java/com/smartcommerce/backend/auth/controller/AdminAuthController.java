@@ -51,7 +51,10 @@ public class AdminAuthController {
         // ✅ Step 1: Verify reCAPTCHA token
         if (!recaptchaService.verifyToken(request.getRecaptchaToken())) {
             return ResponseEntity.status(403)
-                    .body(new AuthResponse("reCAPTCHA verification failed", false));
+                    .body(AuthResponse.builder()
+                            .message("reCAPTCHA verification failed")
+                            .success(false)
+                            .build());
         }
 
         // ✅ Step 2: Find admin user
@@ -60,7 +63,10 @@ public class AdminAuthController {
         if (admin == null || !"ADMIN".equals(admin.getRole()) ||
                 !passwordEncoder.matches(request.getPassword(), admin.getPassword())) {
             return ResponseEntity.status(401)
-                    .body(new AuthResponse("Invalid admin credentials", false));
+                    .body(AuthResponse.builder()
+                            .message("Invalid admin credentials")
+                            .success(false)
+                            .build());
         }
 
         // ✅ Step 3: Generate JWT
@@ -78,10 +84,19 @@ public class AdminAuthController {
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-        // ✅ Step 4: Return full AuthResponse (token + userId + role)
-        return ResponseEntity.ok(
-                new AuthResponse("Admin login successful", true, token, admin.getId(), "ROLE_ADMIN", admin.getName())
-        );
+        // ✅ Step 4: Return full AuthResponse
+        AuthResponse authResponse = AuthResponse.builder()
+                .message("Admin login successful")
+                .success(true)
+                .token(token)
+                .userId(admin.getId())
+                .role("ROLE_ADMIN")
+                .name(admin.getName())
+                .email(admin.getEmail())
+                .expiresIn(86400L)
+                .build();
+
+        return ResponseEntity.ok(authResponse);
     }
 
     // ------------------ Forgot Password ------------------
@@ -89,9 +104,15 @@ public class AdminAuthController {
     public ResponseEntity<AuthResponse> forgotPassword(@RequestBody ForgotPasswordRequest request) {
         boolean sent = emailService.sendPasswordReset(request.getEmail());
         if (sent) {
-            return ResponseEntity.ok(new AuthResponse("Password reset link sent", true));
+            return ResponseEntity.ok(AuthResponse.builder()
+                    .message("Password reset link sent")
+                    .success(true)
+                    .build());
         }
-        return ResponseEntity.badRequest().body(new AuthResponse("Email not found or failed to send", false));
+        return ResponseEntity.badRequest().body(AuthResponse.builder()
+                .message("Email not found or failed to send")
+                .success(false)
+                .build());
     }
 
     // ------------------ Admin Logout ------------------
@@ -111,7 +132,10 @@ public class AdminAuthController {
                 .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
                 .header(HttpHeaders.PRAGMA, "no-cache")
                 .header(HttpHeaders.EXPIRES, "0")
-                .body(new AuthResponse("Admin logged out successfully", true));
+                .body(AuthResponse.builder()
+                        .message("Admin logged out successfully")
+                        .success(true)
+                        .build());
     }
 
     @PostMapping("/reset-password")

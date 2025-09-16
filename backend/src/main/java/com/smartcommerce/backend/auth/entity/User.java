@@ -1,13 +1,16 @@
 package com.smartcommerce.backend.auth.entity;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 @Entity
 @Table(name = "users")
@@ -35,16 +38,9 @@ public class User implements UserDetails {
     @Column
     private String password; // only required for ADMIN accounts
 
-    @Embedded
-    @AttributeOverrides({
-            @AttributeOverride(name = "country", column = @Column(name = "address_country")),
-            @AttributeOverride(name = "state", column = @Column(name = "address_state")),
-            @AttributeOverride(name = "city", column = @Column(name = "address_city")),
-            @AttributeOverride(name = "area", column = @Column(name = "address_area")),
-            @AttributeOverride(name = "houseNo", column = @Column(name = "address_house_no")),
-            @AttributeOverride(name = "landmark", column = @Column(name = "address_landmark"))
-    })
-    private Address address;
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
+    private List<Address> addresses = new ArrayList<>();
 
     // ---------------- UserDetails methods for Spring Security ----------------
 

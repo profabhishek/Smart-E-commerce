@@ -1,8 +1,8 @@
 package com.smartcommerce.backend.auth.dto;
 
-import com.smartcommerce.backend.auth.entity.Address;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import java.util.List;
 
 @Data
 public class UpdateProfileRequest {
@@ -13,5 +13,6 @@ public class UpdateProfileRequest {
     @Size(max = 15, message = "Phone number must be at most 15 digits")
     private String phone;
 
-    private Address address;
+    // ✅ Multiple addresses instead of one
+    private List<AddressDTO> addresses;
 }

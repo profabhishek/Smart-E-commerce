@@ -51,14 +51,16 @@ public class AuthController {
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
         // ✅ Return role + token for frontend redirection
-        AuthResponse authResponse = new AuthResponse(
-                "User login successful",
-                true,
-                token,
-                user.getId(),
-                "ROLE_USER",
-                user.getName()
-        );
+        AuthResponse authResponse = AuthResponse.builder()
+                .message("User login successful")
+                .success(true)
+                .token(token)
+                .userId(user.getId())
+                .role("ROLE_USER")
+                .name(user.getName())
+                .email(user.getEmail())
+                .expiresIn(86400L) // 24 hrs in seconds
+                .build();
 
         return ResponseEntity.ok(authResponse);
     }
