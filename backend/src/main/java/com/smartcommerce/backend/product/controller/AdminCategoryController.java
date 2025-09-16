@@ -17,6 +17,7 @@ public class AdminCategoryController {
     // Admin: create category
     @PostMapping
     public Category createCategory(@RequestBody Category category) {
+        // all fields: name, description, icon
         return categoryRepo.save(category);
     }
 
@@ -28,6 +29,7 @@ public class AdminCategoryController {
 
         category.setName(updatedCategory.getName());
         category.setDescription(updatedCategory.getDescription());
+        category.setIcon(updatedCategory.getIcon()); // ✅ update icon too
 
         return categoryRepo.save(category);
     }
