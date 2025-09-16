@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle,DialogClose } from "@/components/ui/dialog";
 import toast, { Toaster } from "react-hot-toast";
+import { X } from "lucide-react";
 
 // 🌍 Countries & states (replace with API later)
 const countryStateMap = {
@@ -26,7 +27,12 @@ export default function Profile() {
   const [editingAddress, setEditingAddress] = useState(null);
   const [originalAddress, setOriginalAddress] = useState(null);
 
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [addressToDelete, setAddressToDelete] = useState(null);
+
+
   const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const userToken = localStorage.getItem("user_token");
 
   // 🛡️ Fetch profile
   useEffect(() => {
@@ -34,7 +40,10 @@ export default function Profile() {
       try {
         const res = await fetch(`${VITE_API_BASE_URL}/api/user/profile`, {
           method: "GET",
-          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${userToken}`, // ✅ send user token
+          },
         });
         if (res.ok) {
           const data = await res.json();
@@ -60,7 +69,7 @@ export default function Profile() {
       }
     };
     fetchProfile();
-  }, [navigate, VITE_API_BASE_URL]);
+  }, [navigate, VITE_API_BASE_URL, userToken]);
 
   // 🔄 Handle profile update
   const handleChange = (e) => {
@@ -73,8 +82,10 @@ export default function Profile() {
     try {
       const res = await fetch(`${VITE_API_BASE_URL}/api/user/profile`, {
         method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${userToken}`, // ✅ send user token
+        },
         body: JSON.stringify({
           name: profile.name,
           phone: profile.phone,
@@ -99,26 +110,38 @@ export default function Profile() {
       let res;
       if (addr.id) {
         // Update
-        res = await fetch(`${VITE_API_BASE_URL}/api/user/addresses/${addr.id}?userId=${profile.id}`, {
-          method: "PUT",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(addr),
-        });
+        res = await fetch(
+          `${VITE_API_BASE_URL}/api/user/addresses/${addr.id}?userId=${profile.id}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${userToken}`, // ✅ send user token
+            },
+            body: JSON.stringify(addr),
+          }
+        );
       } else {
         // Add
-        res = await fetch(`${VITE_API_BASE_URL}/api/user/addresses?userId=${profile.id}`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(addr),
-        });
+        res = await fetch(
+          `${VITE_API_BASE_URL}/api/user/addresses?userId=${profile.id}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${userToken}`, // ✅ send user token
+            },
+            body: JSON.stringify(addr),
+          }
+        );
       }
 
       if (res.ok) {
         const updated = await res.json();
         if (addr.id) {
-          setAddresses(addresses.map((a) => (a.id === updated.id ? updated : a)));
+          setAddresses(
+            addresses.map((a) => (a.id === updated.id ? updated : a))
+          );
           toast.success("Address updated ✅");
         } else {
           setAddresses([...addresses, updated]);
@@ -136,10 +159,15 @@ export default function Profile() {
 
   const handleDeleteAddress = async (id) => {
     try {
-      const res = await fetch(`${VITE_API_BASE_URL}/api/user/addresses/${id}?userId=${profile.id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const res = await fetch(
+        `${VITE_API_BASE_URL}/api/user/addresses/${id}?userId=${profile.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${userToken}`, // ✅ send user token
+          },
+        }
+      );
       if (res.ok) {
         setAddresses(addresses.filter((a) => a.id !== id));
         toast.success("Address deleted 🗑️");
@@ -155,8 +183,10 @@ export default function Profile() {
   if (!profile) return null;
 
   // 🛑 Compare objects
-  const isProfileChanged = JSON.stringify(profile) !== JSON.stringify(originalProfile);
-  const isAddressChanged = JSON.stringify(editingAddress) !== JSON.stringify(originalAddress);
+  const isProfileChanged =
+    JSON.stringify(profile) !== JSON.stringify(originalProfile);
+  const isAddressChanged =
+    JSON.stringify(editingAddress) !== JSON.stringify(originalAddress);
 
   return (
     <>
@@ -165,49 +195,73 @@ export default function Profile() {
       <div className="flex min-h-screen bg-gray-50 p-6">
         <div className="w-full max-w-5xl mx-auto space-y-8">
           {/* Profile Info */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold">Profile Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form className="grid gap-6" onSubmit={handleSaveProfile}>
-                <div>
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    value={profile.name || ""}
-                    onChange={handleChange}
-                    placeholder="Enter your full name"
-                    required
-                  />
-                </div>
+      <Card className="shadow-xl border rounded-2xl">
+        <CardHeader className="border-b pb-4">
+          <CardTitle className="text-2xl font-bold text-gray-800">
+            Profile Information
+          </CardTitle>
+          <p className="text-sm text-gray-500">Manage your personal details here</p>
+        </CardHeader>
 
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" value={profile.email} disabled className="bg-gray-100" />
-                </div>
+        <CardContent className="pt-6">
+          <form className="space-y-6" onSubmit={handleSaveProfile}>
+            {/* Full Name */}
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-gray-700 font-medium">
+                Full Name
+              </Label>
+              <Input
+                id="name"
+                name="name"
+                value={profile.name || ""}
+                onChange={handleChange}
+                placeholder="Enter your full name"
+                className="h-12 rounded-lg border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
 
-                <div>
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    value={profile.phone || ""}
-                    onChange={handleChange}
-                    placeholder="Enter phone number"
-                  />
-                </div>
+            {/* Email */}
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-gray-700 font-medium">
+                Email
+              </Label>
+              <Input
+                id="email"
+                value={profile.email}
+                disabled
+                className="h-12 rounded-lg bg-gray-100 border-gray-300 text-gray-500"
+              />
+            </div>
 
-                <div className="flex justify-end">
-                  <Button className="cursor-pointer" type="submit" disabled={saving || !isProfileChanged}>
-                    {saving ? "Saving…" : "Save Profile"}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+            {/* Phone */}
+            <div className="space-y-2">
+              <Label htmlFor="phone" className="text-gray-700 font-medium">
+                Phone Number
+              </Label>
+              <Input
+                id="phone"
+                name="phone"
+                value={profile.phone || ""}
+                onChange={handleChange}
+                placeholder="Enter phone number"
+                className="h-12 rounded-lg border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
+            {/* Save Button */}
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                className="h-11 px-6 rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all duration-200"
+                disabled={saving || !isProfileChanged}
+              >
+                {saving ? "Saving…" : "Save Profile"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
           {/* Addresses */}
           <Card className="shadow-lg">
             <CardHeader>
@@ -234,9 +288,17 @@ export default function Profile() {
                       >
                         Edit
                       </Button>
-                      <Button className="cursor-pointer" variant="destructive" onClick={() => handleDeleteAddress(addr.id)}>
+                      <Button
+                        className="cursor-pointer"
+                        variant="destructive"
+                        onClick={() => {
+                          setAddressToDelete(addr.id);   // store the ID of the address
+                          setShowDeleteModal(true);      // open confirmation modal
+                        }}
+                      >
                         Delete
                       </Button>
+
                     </div>
                   </div>
                 ))
@@ -250,27 +312,90 @@ export default function Profile() {
 
       {/* Address Modal */}
       <Dialog open={showAddressModal} onOpenChange={setShowAddressModal}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editingAddress?.id ? "Edit Address" : "Add Address"}</DialogTitle>
+        <DialogContent className="sm:max-w-lg rounded-xl shadow-lg">
+          <DialogHeader className="pb-2 border-b">
+            <DialogTitle className="text-lg font-semibold text-gray-800">
+              {editingAddress?.id ? "Edit Address" : "Add Address"}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            {["houseNo", "area", "landmark", "city", "pinCode"].map((field) => (
-              <div key={field}>
-                <Label htmlFor={field}>{field}</Label>
+
+          <div className="grid gap-3 pt-3">
+            {/* House & Area side by side */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="houseNo">House No.</Label>
                 <Input
-                  id={field}
-                  value={editingAddress?.[field] || ""}
+                  id="houseNo"
+                  value={editingAddress?.houseNo || ""}
                   onChange={(e) =>
-                    setEditingAddress({ ...editingAddress, [field]: e.target.value })
+                    setEditingAddress({ ...editingAddress, houseNo: e.target.value })
                   }
+                  placeholder="123"
+                  className="h-10 text-sm"
                 />
               </div>
-            ))}
+              <div>
+                <Label htmlFor="area">Area</Label>
+                <Input
+                  id="area"
+                  value={editingAddress?.area || ""}
+                  onChange={(e) =>
+                    setEditingAddress({ ...editingAddress, area: e.target.value })
+                  }
+                  placeholder="Street / Colony"
+                  className="h-10 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Landmark */}
+            <div>
+              <Label htmlFor="landmark">Landmark</Label>
+              <Input
+                id="landmark"
+                value={editingAddress?.landmark || ""}
+                onChange={(e) =>
+                  setEditingAddress({ ...editingAddress, landmark: e.target.value })
+                }
+                placeholder="Near park, mall..."
+                className="h-10 text-sm"
+              />
+            </div>
+
+            {/* City & Pincode side by side */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="city">City</Label>
+                <Input
+                  id="city"
+                  value={editingAddress?.city || ""}
+                  onChange={(e) =>
+                    setEditingAddress({ ...editingAddress, city: e.target.value })
+                  }
+                  placeholder="City"
+                  className="h-10 text-sm"
+                />
+              </div>
+              <div>
+                <Label htmlFor="pinCode">Pin Code</Label>
+                <Input
+                  id="pinCode"
+                  value={editingAddress?.pinCode || ""}
+                  onChange={(e) =>
+                    setEditingAddress({ ...editingAddress, pinCode: e.target.value })
+                  }
+                  placeholder="110001"
+                  className="h-10 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Country */}
             <div>
               <Label htmlFor="country">Country</Label>
               <select
-                className="w-full border rounded p-2"
+                id="country"
+                className="w-full h-10 text-sm rounded-md border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 value={editingAddress?.country || ""}
                 onChange={(e) =>
                   setEditingAddress({
@@ -282,14 +407,19 @@ export default function Profile() {
               >
                 <option value="">Select Country</option>
                 {Object.keys(countryStateMap).map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
                 ))}
               </select>
             </div>
+
+            {/* State */}
             <div>
               <Label htmlFor="state">State</Label>
               <select
-                className="w-full border rounded p-2"
+                id="state"
+                className="w-full h-10 text-sm rounded-md border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 value={editingAddress?.state || ""}
                 onChange={(e) =>
                   setEditingAddress({ ...editingAddress, state: e.target.value })
@@ -297,13 +427,28 @@ export default function Profile() {
               >
                 <option value="">Select State</option>
                 {(countryStateMap[editingAddress?.country] || []).map((st) => (
-                  <option key={st} value={st}>{st}</option>
+                  <option key={st} value={st}>
+                    {st}
+                  </option>
                 ))}
               </select>
             </div>
-            <div className="flex justify-end gap-3">
-              <Button className="cursor-pointer" variant="outline" onClick={() => setShowAddressModal(false)}>Cancel</Button>
-              <Button className="cursor-pointer"
+
+            {/* Buttons */}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                className="cursor-pointer"
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAddressModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
                 onClick={() => handleSaveAddress(editingAddress || {})}
                 disabled={!isAddressChanged}
               >
@@ -313,6 +458,46 @@ export default function Profile() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent className="sm:max-w-md rounded-xl shadow-lg [&>button]:hidden">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-red-600">
+              Are you sure?
+            </DialogTitle>
+            <p className="text-sm text-gray-500">
+              This action will permanently delete the address. You cannot undo this.
+            </p>
+
+            {/* ✅ Custom Close Button with cursor-pointer */}
+            <DialogClose asChild>
+              <button
+                className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </DialogClose>
+          </DialogHeader>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                handleDeleteAddress(addressToDelete);
+                setShowDeleteModal(false);
+              }}
+            >
+              Yes, Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+
     </>
   );
 }

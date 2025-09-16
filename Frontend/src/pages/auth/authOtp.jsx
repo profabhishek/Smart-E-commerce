@@ -53,11 +53,22 @@ export default function AuthOTP({ onVerify }) {
         }
 
         const data = await res.json();
-        localStorage.setItem("userId", data.userId);
-        localStorage.setItem("email", email);
+        localStorage.setItem("user_id", data.userId);        // lowercase, consistent
+        localStorage.setItem("user_email", email);
+        localStorage.setItem("user_role", "ROLE_USER");
+
+        if (data.name) {
+          localStorage.setItem("user_name", data.name);
+        }
+
+        if (data.token) {
+          localStorage.setItem("user_token", data.token);
+        }
+
         sessionStorage.removeItem("pendingEmail");
         onVerify?.(data);
-        navigate("/");
+        navigate("/", { replace: true });
+        window.location.reload(); 
       } catch (e) {
         toast.error(e.message || "Network error. Please try again.");
         setSubmitting(false);

@@ -18,7 +18,7 @@ export default function LoginPage() {
 
   // ✅ Auto-redirect if already logged in
   useEffect(() => {
-    const role = localStorage.getItem("role");
+    const role = localStorage.getItem("admin_role");
     if (role === "ROLE_ADMIN") {
       navigate("/admin/dashboard");
     }
@@ -55,9 +55,9 @@ export default function LoginPage() {
           toast.error(data.message || "Login failed ❌");
         }
       } else {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("role", data.role);
-        localStorage.setItem("name", data.name || "Admin");
+          localStorage.setItem("admin_token", data.token);
+          localStorage.setItem("admin_role", data.role);
+          localStorage.setItem("admin_name", data.name || "Admin");
         toast.success("Login successful 🚀");
         setTimeout(() => navigate("/admin/dashboard"), 800);
       }

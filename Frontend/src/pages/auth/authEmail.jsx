@@ -14,7 +14,7 @@ export default function AuthEmail() {
 
     const checkSession = async () => {
       // 1) Fast path: localStorage says user is logged in
-      const role = localStorage.getItem("role");
+      const role = localStorage.getItem("user_role");
       if (role === "ROLE_USER") {
         navigate("/", { replace: true });
         return;
@@ -30,13 +30,13 @@ export default function AuthEmail() {
         if (!cancelled && res.ok) {
           const user = await res.json();
           // Persist minimal session info for UI
-          localStorage.setItem("role", "ROLE_USER");
+          localStorage.setItem("user_role", "ROLE_USER");
           if (user?.name && user.name.trim()) {
-            localStorage.setItem("name", user.name);
+            localStorage.setItem("user_name", user.name);
           } else if (user?.email) {
-            localStorage.setItem("name", user.email.split("@")[0]);
+            localStorage.setItem("user_name", user.email.split("@")[0]);
           } else {
-            localStorage.setItem("name", "User");
+            localStorage.setItem("user_name", "User");
           }
           navigate("/", { replace: true });
           return;

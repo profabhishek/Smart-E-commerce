@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Search, ShoppingCart, User, LogOut } from "lucide-react";
+import { Search, ShoppingCart, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { logo } from "../../assets";
@@ -21,27 +21,44 @@ export default function Header() {
 
   const cartItemsCount = 3; // dummy
   const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  const userToken = localStorage.getItem("user_token");
+
+  const fetchProfile = async () => {
+    try {
+      const res = await fetch(`${VITE_API_BASE_URL}/api/user/profile`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${userToken}`,   // 👈 send user JWT explicitly
+      },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProfile(data);
+      } else {
+        setProfile(false); // 401 → user not signed in
+      }
+    } catch {
+      setProfile(false);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const res = await fetch(`${VITE_API_BASE_URL}/api/user/profile`, {
-          method: "GET",
-          credentials: "include",
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setProfile(data);
-        } else {
-          setProfile(false); // 401 → user not signed in
-        }
-      } catch {
-        setProfile(false);
-      } finally {
-        setLoading(false);
+    fetchProfile();
+
+    // 👇 Listen for login/logout events in localStorage
+    const handleStorage = (e) => {
+      if (e.key === "user_role" || e.key === "user_id") {
+        fetchProfile();
       }
     };
-    fetchProfile();
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -50,6 +67,10 @@ export default function Header() {
       credentials: "include",
     });
     setProfile(false);
+    localStorage.removeItem("user_id");
+    localStorage.removeItem("user_email");
+    localStorage.removeItem("user_role");
+    localStorage.removeItem("user_token");
     navigate("/");
   };
 
@@ -67,9 +88,8 @@ export default function Header() {
     }
 
     // ---------------- signed in ----------------
-    const initials = `${profile.name?.[0] ?? ""}${
-      profile.name?.[1] ?? ""
-    }`.toUpperCase();
+    const initials = `${profile.name?.[0] ?? ""}${profile.name?.[1] ?? ""}`.toUpperCase();
+
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -106,15 +126,15 @@ export default function Header() {
       <div className="container flex h-16 items-center justify-between px-4">
         <Link to="/" className="flex items-center gap-3 text-xl font-bold tracking-tight">
           {/* Logo */}
-          <img
-            className="h-12 w-26"
-            src={logo}
-            alt="logo"
-          />
+          <img className="h-12 w-26" src={logo} alt="logo" />
           <span
             className="text-2xl mb-1 font-extrabold bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600 bg-clip-text text-transparent"
-           style={{textShadow: "2px 2px 4px rgba(0,0,0,0.4), -1px -1px 2px rgba(255,255,255,0.2)", lineHeight:1.1}}>
-                Poster <br /> पटाका
+            style={{
+              textShadow: "2px 2px 4px rgba(0,0,0,0.4), -1px -1px 2px rgba(255,255,255,0.2)",
+              lineHeight: 1.1,
+            }}
+          >
+            Poster <br /> पटाका
           </span>
         </Link>
 
@@ -122,11 +142,7 @@ export default function Header() {
         <div className="hidden w-full max-w-sm md:block">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search products…"
-              className="pl-8"
-            />
+            <Input type="search" placeholder="Search products…" className="pl-8" />
           </div>
         </div>
 

@@ -18,7 +18,7 @@ export default function AdminDashboard() {
 
   // ✅ Auto-redirect if not logged in as admin
   useEffect(() => {
-    const role = localStorage.getItem("role");
+    const role = localStorage.getItem("admin_role");
     if (role !== "ROLE_ADMIN") {
       navigate("/admin/login");
     }
@@ -31,9 +31,9 @@ export default function AdminDashboard() {
         method: "POST",
         credentials: "include",
         });
-        localStorage.removeItem("token");
-        localStorage.removeItem("role");
-        localStorage.removeItem("name"); // ✅ fixed
+        localStorage.removeItem("admin_token");
+        localStorage.removeItem("admin_role");
+        localStorage.removeItem("admin_name"); // ✅ fixed
         navigate("/admin/login", { replace: true }); // ✅ ensures redirect without refresh
     } catch (err) {
         console.error("Logout failed:", err);
@@ -114,7 +114,7 @@ export default function AdminDashboard() {
         {/* Top Bar */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-3xl font-bold text-gray-800">
-            Welcome, {localStorage.getItem("name") || "Admin"} 👋
+            Welcome, {localStorage.getItem("admin_name") || "Admin"} 👋
           </h2>
           <div className="flex items-center gap-4">
             <button className="bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700">
