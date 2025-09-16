@@ -42,6 +42,8 @@
                                     "/api/admin/auth/forgot-password",
                                     "/api/admin/auth/reset-password"
                             ).permitAll() // Admin login + reset
+                            .requestMatchers("/api/products/**").permitAll() // 👈 public product browsing
+                            .requestMatchers("/api/categories/**").permitAll() // 👈 if you want public category list
 
                             // ===== Protected (JWT required) =====
                             .requestMatchers("/api/user/**").hasRole("USER")

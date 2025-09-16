@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { Eye, EyeOff } from "lucide-react";
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmError, setConfirmError] = useState(""); // 🚨 error state
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -17,6 +18,15 @@ export default function ResetPasswordPage() {
 
   // 🔑 Token from query params
   const token = searchParams.get("token");
+
+  // 🔍 Real-time password match validation
+  useEffect(() => {
+    if (confirmPassword && password !== confirmPassword) {
+      setConfirmError("Passwords do not match ❌");
+    } else {
+      setConfirmError("");
+    }
+  }, [password, confirmPassword]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -105,7 +115,9 @@ export default function ResetPasswordPage() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
-            className="pr-10"
+            className={`pr-10 ${
+              confirmError ? "border-red-500 focus:ring-red-500" : ""
+            }`}
           />
           <button
             type="button"
@@ -114,9 +126,18 @@ export default function ResetPasswordPage() {
           >
             {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
           </button>
+
+          {/* Error message in realtime */}
+          {confirmError && (
+            <p className="text-red-600 text-sm mt-1">{confirmError}</p>
+          )}
         </div>
 
-        <Button type="submit" className="w-full" disabled={loading}>
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={loading || confirmError !== ""}
+        >
           {loading ? "Resetting..." : "Reset Password"}
         </Button>
       </form>
