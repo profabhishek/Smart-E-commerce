@@ -70,6 +70,7 @@ public class AdminAuthController {
         ResponseCookie cookie = ResponseCookie.from("admin_jwt", token)
                 .httpOnly(true)
                 .secure(false) // ⚠️ set true in production (HTTPS)
+                .domain("localhost")
                 .path("/")
                 .maxAge(24 * 60 * 60) // 1 day
                 .sameSite("Lax")
@@ -95,17 +96,22 @@ public class AdminAuthController {
 
     // ------------------ Admin Logout ------------------
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(HttpServletResponse response) {
+    public ResponseEntity<AuthResponse> logout() {
         ResponseCookie cookie = ResponseCookie.from("admin_jwt", "")
                 .httpOnly(true)
-                .secure(false) // ⚠️ set true in production
+                .secure(false)          // true in prod
                 .path("/")
-                .maxAge(0) // expire immediately
+                .domain("localhost")    // must match login
+                .maxAge(0)              // expire immediately
                 .sameSite("Lax")
                 .build();
 
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .header(HttpHeaders.EXPIRES, "0")
+                .body(new AuthResponse("Admin logged out successfully", true));
     }
 
     @PostMapping("/reset-password")
