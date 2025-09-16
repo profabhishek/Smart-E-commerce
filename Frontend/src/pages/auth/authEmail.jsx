@@ -6,6 +6,7 @@ export default function AuthEmail() {
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const navigate = useNavigate();
+  const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // 🔐 Auto-redirect if already logged in as USER
   useEffect(() => {
@@ -21,7 +22,7 @@ export default function AuthEmail() {
 
       // 2) Slow path: ask backend (uses httpOnly cookie `user_jwt`)
       try {
-        const res = await fetch("http://localhost:8080/api/user/profile", {
+        const res = await fetch(`${VITE_API_BASE_URL}/api/user/profile`, {
           method: "GET",
           credentials: "include",
         });
@@ -62,7 +63,7 @@ export default function AuthEmail() {
 
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8080/api/auth/request-otp", {
+      const res = await fetch(`${VITE_API_BASE_URL}/api/auth/request-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: cleanEmail }),

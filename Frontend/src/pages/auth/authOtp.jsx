@@ -17,6 +17,7 @@ export default function AuthOTP({ onVerify }) {
   const inputs = useRef([]);
   const navigate = useNavigate();
   const location = useLocation();
+  const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const email = location.state?.email || sessionStorage.getItem("pendingEmail");
 
@@ -39,7 +40,7 @@ export default function AuthOTP({ onVerify }) {
       try {
         await otpSchema.validate({ code });
 
-        const res = await fetch("http://localhost:8080/api/auth/verify-otp", {
+        const res = await fetch(`${VITE_API_BASE_URL}/api/auth/verify-otp`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, code }),

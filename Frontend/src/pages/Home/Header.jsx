@@ -20,11 +20,12 @@ export default function Header() {
   const [loading, setLoading] = useState(true);
 
   const cartItemsCount = 3; // dummy
+  const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const res = await fetch("http://localhost:8080/api/user/profile", {
+        const res = await fetch(`${VITE_API_BASE_URL}/api/user/profile`, {
           method: "GET",
           credentials: "include",
         });
@@ -44,7 +45,7 @@ export default function Header() {
   }, []);
 
   const handleLogout = async () => {
-    await fetch("http://localhost:8080/api/auth/logout", {
+    await fetch(`${VITE_API_BASE_URL}/api/auth/logout`, {
       method: "POST",
       credentials: "include",
     });

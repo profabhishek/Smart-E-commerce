@@ -40,7 +40,8 @@
                             .requestMatchers(
                                     "/api/admin/auth/login",
                                     "/api/admin/auth/forgot-password",
-                                    "/api/admin/auth/reset-password"
+                                    "/api/admin/auth/reset-password",
+                                    "/api/admin/auth/logout"
                             ).permitAll() // Admin login + reset
                             .requestMatchers("/api/products/**").permitAll() // 👈 public product browsing
                             .requestMatchers("/api/categories/**").permitAll() // 👈 if you want public category list

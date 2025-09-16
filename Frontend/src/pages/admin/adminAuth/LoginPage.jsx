@@ -14,6 +14,8 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { executeRecaptcha } = useGoogleReCaptcha();
 
+  const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
   // ✅ Auto-redirect if already logged in
   useEffect(() => {
     const role = localStorage.getItem("role");
@@ -35,7 +37,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const recaptchaToken = await executeRecaptcha("admin_login");
-      const res = await fetch("http://localhost:8080/api/admin/auth/login", {
+      const res = await fetch(`${VITE_API_BASE_URL}/api/admin/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

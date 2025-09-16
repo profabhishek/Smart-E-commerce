@@ -18,6 +18,9 @@ public class Category {
 
     private String description;
 
+    @Column(length = 500)
+    private String icon; // ✅ new field: store URL/path for category icon
+
     // One category can have many products
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore

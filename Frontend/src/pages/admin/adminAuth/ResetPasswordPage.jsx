@@ -15,6 +15,7 @@ export default function ResetPasswordPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // 🔑 Token from query params
   const token = searchParams.get("token");
@@ -49,7 +50,7 @@ export default function ResetPasswordPage() {
 
     try {
       const res = await fetch(
-        "http://localhost:8080/api/admin/auth/reset-password",
+        `${VITE_API_BASE_URL}/api/admin/auth/reset-password`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
