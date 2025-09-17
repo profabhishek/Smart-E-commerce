@@ -3,6 +3,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminLogin from "./pages/AdminLogin";
 import RouterErrorBoundary from "./components/utils/RouterErrorBoundary";
+import { Toaster } from "react-hot-toast";
 
 function App() {
   return (
@@ -33,6 +34,31 @@ function App() {
           errorElement={<RouterErrorBoundary />}
         />
       </Routes>
+
+      {/* ✅ Global Toaster mounted once */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: "#fff",
+            color: "#333",
+            fontSize: "14px",
+          },
+          success: {
+            style: {
+              border: "1px solid #16a34a",
+              padding: "12px",
+            },
+          },
+          error: {
+            style: {
+              border: "1px solid #dc2626",
+              padding: "12px",
+            },
+          },
+        }}
+      />
     </BrowserRouter>
   );
 }

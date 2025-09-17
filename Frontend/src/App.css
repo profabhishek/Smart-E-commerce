@@ -40,3 +40,34 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Toast slide down animation */
+@keyframes slideDown {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+}
+
+.toast-animate {
+  animation: slideDown 0.3s ease-out forwards;
+}
+
+.toast-animate-exit {
+  animation: slideUp 0.25s ease-in forwards;
+}
