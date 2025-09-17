@@ -19,6 +19,7 @@ public class ProductService {
         this.categoryRepo = categoryRepo;
     }
 
+    // CREATE
     public Product createProduct(Product product, Long categoryId) {
         Category category;
 
@@ -31,42 +32,74 @@ public class ProductService {
         }
 
         product.setCategory(category);
+
+        // ensure SKU is unique
+        if (product.getSku() == null || productRepo.findBySku(product.getSku()).isPresent()) {
+            throw new RuntimeException("SKU must be unique and not null");
+        }
+
         return productRepo.save(product);
     }
 
+    // READ ALL
     public List<Product> getAllProducts() {
         return productRepo.findAll();
     }
 
+    // READ ONE
     public Product getProductById(Long id) {
-        return productRepo.findById(id).orElseThrow(() -> new RuntimeException("Product not found"));
+        return productRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
     }
 
+    // DELETE
     public void deleteProduct(Long id) {
+        if (!productRepo.existsById(id)) {
+            throw new RuntimeException("Product not found");
+        }
         productRepo.deleteById(id);
     }
 
+    // READ BY CATEGORY (better: use repo directly instead of filtering in memory)
     public List<Product> getProductsByCategory(Long categoryId) {
-        return productRepo.findAll().stream()
-                .filter(p -> p.getCategory() != null && p.getCategory().getId().equals(categoryId))
-                .toList();
+        Category category = categoryRepo.findById(categoryId)
+                .orElseThrow(() -> new RuntimeException("Category not found"));
+        return productRepo.findByCategory(category);
     }
 
+    // UPDATE
     public Product updateProduct(Long id, Product updatedProduct, Long categoryId) {
         Product existing = productRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        existing.setName(updatedProduct.getName());
-        existing.setDescription(updatedProduct.getDescription());
-        existing.setPhotos(updatedProduct.getPhotos());
-        existing.setPrice(updatedProduct.getPrice());
-        existing.setRating(updatedProduct.getRating());
+        // Update fields (only if non-null, prevents overwriting with nulls)
+        if (updatedProduct.getName() != null) existing.setName(updatedProduct.getName());
+        if (updatedProduct.getDescription() != null) existing.setDescription(updatedProduct.getDescription());
+        if (updatedProduct.getPhotos() != null) existing.setPhotos(updatedProduct.getPhotos());
+        if (updatedProduct.getPrice() != null) existing.setPrice(updatedProduct.getPrice());
+        if (updatedProduct.getDiscountPrice() != null) existing.setDiscountPrice(updatedProduct.getDiscountPrice());
+        if (updatedProduct.getRating() != null) existing.setRating(updatedProduct.getRating());
+        if (updatedProduct.getStock() != null) existing.setStock(updatedProduct.getStock());
+        if (updatedProduct.getSize() != null) existing.setSize(updatedProduct.getSize());
+        if (updatedProduct.getMaterial() != null) existing.setMaterial(updatedProduct.getMaterial());
+        if (updatedProduct.getWidth() != null) existing.setWidth(updatedProduct.getWidth());
+        if (updatedProduct.getHeight() != null) existing.setHeight(updatedProduct.getHeight());
+        if (updatedProduct.getWeight() != null) existing.setWeight(updatedProduct.getWeight());
+        if (updatedProduct.getTags() != null) existing.setTags(updatedProduct.getTags());
+        if (updatedProduct.getSku() != null && !updatedProduct.getSku().equals(existing.getSku())) {
+            if (productRepo.findBySku(updatedProduct.getSku()).isPresent()) {
+                throw new RuntimeException("SKU already exists");
+            }
+            existing.setSku(updatedProduct.getSku());
+        }
 
-        Category category = categoryRepo.findById(categoryId)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
-        existing.setCategory(category);
+        // Category update
+        if (categoryId != null) {
+            Category category = categoryRepo.findById(categoryId)
+                    .orElseThrow(() -> new RuntimeException("Category not found"));
+            existing.setCategory(category);
+        }
 
         return productRepo.save(existing);
     }
-
 }

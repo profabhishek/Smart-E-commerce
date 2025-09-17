@@ -16,7 +16,7 @@ public class ProductController {
         this.productService = productService;
     }
 
-    // Get all products
+    // ✅ Get all products (with optional category filter)
     @GetMapping
     public List<Product> getAllProducts(@RequestParam(required = false) Long categoryId) {
         if (categoryId != null) {
@@ -25,9 +25,31 @@ public class ProductController {
         return productService.getAllProducts();
     }
 
-    // Get product by id
+    // ✅ Get product by ID
     @GetMapping("/{id}")
     public Product getProductById(@PathVariable Long id) {
         return productService.getProductById(id);
+    }
+
+    // ✅ Create product
+    @PostMapping
+    public Product createProduct(@RequestBody Product product,
+                                 @RequestParam(required = false) Long categoryId) {
+        return productService.createProduct(product, categoryId);
+    }
+
+    // ✅ Update product
+    @PutMapping("/{id}")
+    public Product updateProduct(@PathVariable Long id,
+                                 @RequestBody Product updatedProduct,
+                                 @RequestParam(required = false) Long categoryId) {
+        return productService.updateProduct(id, updatedProduct, categoryId);
+    }
+
+    // ✅ Delete product
+    @DeleteMapping("/{id}")
+    public String deleteProduct(@PathVariable Long id) {
+        productService.deleteProduct(id);
+        return "Product deleted successfully";
     }
 }
