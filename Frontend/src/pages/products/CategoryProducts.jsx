@@ -4,7 +4,6 @@ import Header from "../Home/Header";
 import Footer from "../Home/Footer";
 import RatingStars from "../../components/RatingStars";
 
-
 export default function CategoryProducts() {
   const { id } = useParams();
   const [products, setProducts] = useState([]);
@@ -53,11 +52,43 @@ export default function CategoryProducts() {
       <section className="py-16 bg-white">
         <div className="container mx-auto px-6">
           {loading ? (
-            <p className="text-gray-500 text-center">Loading products…</p>
+            // ---------------- Skeleton Loader ----------------
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-10">
+              {[1, 2, 3, 4].map((n) => (
+                <div
+                  key={n}
+                  className="group bg-white rounded-2xl shadow-md overflow-hidden relative border border-gray-100 animate-pulse"
+                >
+                  {/* Image skeleton */}
+                  <div className="w-full h-80 bg-gray-200" />
+
+                  {/* Details skeleton */}
+                  <div className="p-5 flex flex-col justify-between h-48">
+                    <div>
+                      <div className="h-5 w-2/3 bg-gray-200 rounded mb-2" />
+                      <div className="h-4 w-full bg-gray-200 rounded mb-1" />
+                      <div className="h-4 w-1/2 bg-gray-200 rounded" />
+                      <div className="flex gap-1 mt-3">
+                        {[...Array(5)].map((_, i) => (
+                          <div key={i} className="h-4 w-4 bg-gray-200 rounded" />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-4">
+                      <div className="space-y-1">
+                        <div className="h-5 w-20 bg-gray-200 rounded" />
+                        <div className="h-4 w-16 bg-gray-200 rounded" />
+                      </div>
+                      <div className="h-8 w-16 bg-gray-200 rounded" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : products.length > 0 ? (
+            // ---------------- Real Product Cards ----------------
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-10">
               {products.map((p) => {
-                // demo discount & rating logic
                 const originalPrice = p.price;
                 const discountPercent = p.discount || 20;
                 const finalPrice = Math.round(originalPrice * (1 - discountPercent / 100));
@@ -76,7 +107,6 @@ export default function CategoryProducts() {
                         alt={p.name}
                         className="w-full h-80 object-cover transform group-hover:scale-105 duration-500"
                       />
-                      {/* Category Tag */}
                       {p.category && (
                         <span className="absolute top-3 left-3 bg-green-600 text-xs px-3 py-1 rounded-full text-white shadow">
                           {p.category.name}
@@ -93,13 +123,9 @@ export default function CategoryProducts() {
                         <p className="text-sm text-gray-500 mt-1 line-clamp-2">
                           {p.description}
                         </p>
-
-                        {/* Rating */}
-                      <RatingStars rating={rating} count={ratingCount} size="h-5 w-5 mt-2" />
-
+                        <RatingStars rating={rating} count={ratingCount} size="h-5 w-5 mt-2" />
                       </div>
 
-                      {/* Pricing + CTA */}
                       <div className="flex items-center justify-between mt-4">
                         <div>
                           <span className="text-lg font-semibold text-green-600">

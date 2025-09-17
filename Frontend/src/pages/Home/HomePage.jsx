@@ -44,32 +44,11 @@ export default function HomePage() {
     loadData();
   }, []);
 
-  const groupedByCategory = products.reduce((acc, p) => {
-  const catId = p.category?.id || "uncategorized";
-  if (!acc[catId]) acc[catId] = [];
-  acc[catId].push(p);
-  return acc;
-}, {});
-
-const interleaved = [];
-const categoryKeys = Object.keys(groupedByCategory);
-let more = true;
-
-while (more) {
-  more = false;
-  for (const key of categoryKeys) {
-    if (groupedByCategory[key].length > 0) {
-      interleaved.push(groupedByCategory[key].shift());
-      more = true;
-    }
-  }
-}
-
-
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
       {/* Header */}
       <Header />
+
       {/* Hero Section */}
       <section className="relative bg-gradient-to-r from-green-100 via-white to-green-50 py-20">
         <div className="container mx-auto px-6 text-center">
@@ -97,7 +76,7 @@ while (more) {
         </div>
       </section>
 
-      {/* Featured Products (API call) */}
+      {/* Featured Products */}
       <section className="py-20 bg-gradient-to-b from-gray-50 via-white to-gray-100">
         <div className="container mx-auto px-6">
           <h2 className="text-4xl font-extrabold text-center text-gray-900 mb-12">
@@ -105,21 +84,41 @@ while (more) {
           </h2>
 
           {loading ? (
-            <p className="text-gray-500 text-center">Loading featured products…</p>
+            // 🔹 Featured Products Skeleton
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-10">
+              {[1, 2, 3].map((n) => (
+                <div
+                  key={n}
+                  className="relative group rounded-2xl overflow-hidden shadow-lg border border-gray-100 animate-pulse"
+                >
+                  {/* Poster image skeleton */}
+                  <div className="w-full h-96 bg-gray-200" />
+
+                  {/* Gradient overlay */}
+                  <div className="absolute inset-0 bg-gray-300/30" />
+
+                  {/* Text overlay skeleton */}
+                  <div className="absolute bottom-0 w-full p-5 space-y-3">
+                    <div className="h-5 w-3/4 bg-gray-200 rounded" />
+                    <div className="h-4 w-1/2 bg-gray-200 rounded" />
+                    <div className="flex items-center justify-between mt-3">
+                      <div className="h-5 w-16 bg-gray-200 rounded" />
+                      <div className="h-8 w-20 bg-gray-200 rounded" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-10">
               {products.length > 0 ? (
-                // ✅ Round-robin category distribution
                 (() => {
-                  // Group products by category
                   const grouped = products.reduce((acc, p) => {
                     const catId = p.category?.id || "uncategorized";
                     if (!acc[catId]) acc[catId] = [];
                     acc[catId].push(p);
                     return acc;
                   }, {});
-
-                  // Interleave products across categories
                   const interleaved = [];
                   const catKeys = Object.keys(grouped);
                   let hasMore = true;
@@ -136,7 +135,7 @@ while (more) {
                   return interleaved.slice(0, 6).map((p) => (
                     <div
                       key={p.id}
-                      className="relative group rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500"
+                      className="relative group rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 border border-gray-100"
                     >
                       {/* Poster image */}
                       <img
@@ -191,7 +190,7 @@ while (more) {
         </div>
       </section>
 
-      {/* Categories Section (API-Call krke liya) */}
+      {/* Categories Section */}
       <section className="bg-gray-100 py-16">
         <div className="container mx-auto px-6 text-center">
           <h2 className="text-3xl font-bold text-gray-800 mb-8">
@@ -199,7 +198,18 @@ while (more) {
           </h2>
 
           {loading ? (
-            <p className="text-gray-500">Loading categories…</p>
+            // 🔹 Categories Skeleton
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+              {[1, 2, 3, 4].map((n) => (
+                <div
+                  key={n}
+                  className="bg-white rounded-lg shadow p-6 flex flex-col items-center animate-pulse"
+                >
+                  <div className="w-20 h-20 rounded-full bg-gray-200 mb-4" />
+                  <div className="h-4 w-16 bg-gray-200 rounded" />
+                </div>
+              ))}
+            </div>
           ) : categories.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
               {categories.map((cat) => (
@@ -208,14 +218,14 @@ while (more) {
                   to={`/category/${cat.id}`}
                   className="bg-white rounded-lg shadow p-6 hover:shadow-md flex flex-col items-center cursor-pointer transition"
                 >
-                <div className="w-20 h-20 rounded-full border-2 flex items-center justify-center mb-4 bg-gray-50 overflow-hidden">
-                  <img
-                    src={cat.icon || "https://via.placeholder.com/200"}
-                    alt={cat.name}
-                    className="w-12 h-12 object-contain"
-                  />
-                </div>
-                <span className="font-medium text-gray-700">{cat.name}</span>
+                  <div className="w-20 h-20 rounded-full border-2 flex items-center justify-center mb-4 bg-gray-50 overflow-hidden">
+                    <img
+                      src={cat.icon || "https://via.placeholder.com/200"}
+                      alt={cat.name}
+                      className="w-12 h-12 object-contain"
+                    />
+                  </div>
+                  <span className="font-medium text-gray-700">{cat.name}</span>
                 </Link>
               ))}
             </div>
@@ -227,7 +237,6 @@ while (more) {
 
       {/* Footer */}
       <Footer />
-
     </div>
   );
 }
