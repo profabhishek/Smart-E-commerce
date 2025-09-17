@@ -1,7 +1,71 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Header from "./Header";
+import Footer from "./Footer";
 
 export default function HomePage() {
+  const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+  // 🔹 Fetch Categories
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch(`${VITE_API_BASE_URL}/api/categories`);
+      if (!res.ok) throw new Error("Failed to fetch categories");
+      const data = await res.json();
+      setCategories(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+    }
+  };
+
+  // 🔹 Fetch Products
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch(`${VITE_API_BASE_URL}/api/products`);
+      if (!res.ok) throw new Error("Failed to fetch products");
+      const data = await res.json();
+      setProducts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error fetching products:", err);
+    }
+  };
+
+  // 🔹 Run both once on mount
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      await Promise.all([fetchCategories(), fetchProducts()]);
+      setLoading(false);
+    };
+    loadData();
+  }, []);
+
+  const groupedByCategory = products.reduce((acc, p) => {
+  const catId = p.category?.id || "uncategorized";
+  if (!acc[catId]) acc[catId] = [];
+  acc[catId].push(p);
+  return acc;
+}, {});
+
+const interleaved = [];
+const categoryKeys = Object.keys(groupedByCategory);
+let more = true;
+
+while (more) {
+  more = false;
+  for (const key of categoryKeys) {
+    if (groupedByCategory[key].length > 0) {
+      interleaved.push(groupedByCategory[key].shift());
+      more = true;
+    }
+  }
+}
+
+
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
       {/* Header */}
@@ -33,89 +97,136 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Featured Products */}
-      <section className="py-16">
+      {/* Featured Products (API call) */}
+      <section className="py-20 bg-gradient-to-b from-gray-50 via-white to-gray-100">
         <div className="container mx-auto px-6">
-          <h2 className="text-3xl font-bold text-gray-800 mb-8 text-center">
-            Featured Posters
+          <h2 className="text-4xl font-extrabold text-center text-gray-900 mb-12">
+            Featured <span className="text-green-700">Posters</span>
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
-            {/* Example product cards (replace with API later) */}
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden"
-              >
-                <img
-                  src={`https://picsum.photos/400/300?random=${i}`}
-                  alt={`Poster ${i}`}
-                  className="w-full h-56 object-cover"
-                />
-                <div className="p-4">
-                  <h3 className="text-lg font-semibold text-gray-800">
-                    Poster #{i}
-                  </h3>
-                  <p className="text-gray-500 text-sm mb-2">
-                    Aesthetic wall art to brighten your space.
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-green-700 font-bold">₹299</span>
-                    <Link
-                      to={`/products/${i}`}
-                      className="text-sm bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700"
+
+          {loading ? (
+            <p className="text-gray-500 text-center">Loading featured products…</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-10">
+              {products.length > 0 ? (
+                // ✅ Round-robin category distribution
+                (() => {
+                  // Group products by category
+                  const grouped = products.reduce((acc, p) => {
+                    const catId = p.category?.id || "uncategorized";
+                    if (!acc[catId]) acc[catId] = [];
+                    acc[catId].push(p);
+                    return acc;
+                  }, {});
+
+                  // Interleave products across categories
+                  const interleaved = [];
+                  const catKeys = Object.keys(grouped);
+                  let hasMore = true;
+                  while (hasMore) {
+                    hasMore = false;
+                    for (const key of catKeys) {
+                      if (grouped[key].length > 0) {
+                        interleaved.push(grouped[key].shift());
+                        hasMore = true;
+                      }
+                    }
+                  }
+
+                  return interleaved.slice(0, 6).map((p) => (
+                    <div
+                      key={p.id}
+                      className="relative group rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500"
                     >
-                      View
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                      {/* Poster image */}
+                      <img
+                        src={p.photos?.[0] || "https://via.placeholder.com/400x600"}
+                        alt={p.name}
+                        className="w-full h-96 object-cover transform group-hover:scale-105 duration-500 opacity-100 group-hover:opacity-30 transition"
+                      />
+
+                      {/* Gradient overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-70 group-hover:opacity-90 transition"></div>
+
+                      {/* Text overlay */}
+                      <div className="absolute bottom-0 w-full bg-gradient-to-t from-black/80 via-black/50 to-transparent p-5 text-white">
+                        <h3 className="text-lg md:text-xl font-extrabold tracking-tight drop-shadow-lg">
+                          {p.name}
+                        </h3>
+                        <p className="text-sm text-gray-200 mt-1 line-clamp-2 drop-shadow-md">
+                          {p.description}
+                        </p>
+                        <div className="flex items-center justify-between mt-3">
+                          <span className="text-lg font-semibold text-green-400 drop-shadow-md">
+                            ₹{p.price}
+                          </span>
+                          <Link
+                            to={`/products/${p.id}`}
+                            className="px-4 py-1.5 text-sm font-semibold rounded-lg 
+                                      bg-gradient-to-r from-green-600 to-green-500 
+                                      hover:from-green-700 hover:to-green-600 
+                                      shadow-md transition cursor-pointer"
+                          >
+                            View
+                          </Link>
+                        </div>
+                      </div>
+
+                      {/* Category Tag */}
+                      {p.category && (
+                        <span className="absolute top-3 left-3 bg-green-600/90 text-white text-xs px-3 py-1 rounded-full shadow-md">
+                          {p.category.name}
+                        </span>
+                      )}
+                    </div>
+                  ));
+                })()
+              ) : (
+                <p className="text-gray-500 text-center col-span-full">
+                  No products found
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
-      {/* Categories Section */}
+      {/* Categories Section (API-Call krke liya) */}
       <section className="bg-gray-100 py-16">
         <div className="container mx-auto px-6 text-center">
           <h2 className="text-3xl font-bold text-gray-800 mb-8">
             Shop by Category
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-            {["Motivational", "Anime", "Minimal", "Music"].map((cat) => (
-              <Link
-                key={cat}
-                to={`/category/${cat.toLowerCase()}`}
-                className="bg-white rounded-lg shadow p-6 hover:shadow-md flex flex-col items-center"
-              >
-                <img
-                  src="https://picsum.photos/200/200"
-                  alt={cat}
-                  className="w-20 h-20 rounded-full mb-4 object-cover"
-                />
-                <span className="font-medium text-gray-700">{cat}</span>
-              </Link>
-            ))}
-          </div>
+
+          {loading ? (
+            <p className="text-gray-500">Loading categories…</p>
+          ) : categories.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+              {categories.map((cat) => (
+                <Link
+                  key={cat.id}
+                  to={`/category/${cat.id}`}
+                  className="bg-white rounded-lg shadow p-6 hover:shadow-md flex flex-col items-center cursor-pointer transition"
+                >
+                <div className="w-20 h-20 rounded-full border-2 flex items-center justify-center mb-4 bg-gray-50 overflow-hidden">
+                  <img
+                    src={cat.icon || "https://via.placeholder.com/200"}
+                    alt={cat.name}
+                    className="w-12 h-12 object-contain"
+                  />
+                </div>
+                <span className="font-medium text-gray-700">{cat.name}</span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500">No categories found</p>
+          )}
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-300 py-6 mt-auto">
-        <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between text-center md:text-left">
-          {/* Left side: copyright */}
-          <p>&copy; {new Date().getFullYear()} Poster Pataka. All rights reserved.</p>
-
-          {/* Right side: admin login link */}
-          <p className="mt-2 md:mt-0">
-            <a
-              href="/admin/login"
-              className="text-sm text-gray-400 hover:text-white transition-colors"
-            >
-              Admin Login
-            </a>
-          </p>
-        </div>
-      </footer>
+      <Footer />
 
     </div>
   );

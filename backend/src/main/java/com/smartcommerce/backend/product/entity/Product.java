@@ -30,10 +30,14 @@ public class Product {
     private List<String> photos; // store URLs (at least 1, up to 5+)
 
     // 💰 Pricing
+    @Column(precision = 10, scale = 2)
     private BigDecimal price;
+
+    @Column(precision = 10, scale = 2)
     private BigDecimal discountPrice;
 
     // ⭐ Rating (average)
+    @Column(nullable = false)
     private Double rating = 0.0;
 
     // 📦 Inventory
@@ -49,6 +53,8 @@ public class Product {
 
     // 🔖 Tags for search/SEO
     @ElementCollection
+    @CollectionTable(name = "product_tags", joinColumns = @JoinColumn(name = "product_id"))
+    @Column(name = "tag")
     private List<String> tags;
 
     // 🕒 Tracking

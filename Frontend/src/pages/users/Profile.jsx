@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle,DialogClose } from "@/components/ui/dialog";
 import toast, { Toaster } from "react-hot-toast";
 import { X } from "lucide-react";
+import Footer from "../Home/Footer";
 
 // 🌍 Countries & states (replace with API later)
 const countryStateMap = {
@@ -496,8 +497,9 @@ export default function Profile() {
           </div>
         </DialogContent>
       </Dialog>
-
-
+      
+      {/* Footer */}
+      <Footer />
     </>
   );
 }
