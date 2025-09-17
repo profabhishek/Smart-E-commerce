@@ -233,21 +233,21 @@ export default function CategoryManagement() {
             <div className="py-8 text-center text-gray-500">Loading…</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full table-fixed border-collapse">
+              <table className="w-full border-collapse">
                 <colgroup>
-                  <col style={{ width: "7rem" }} />
-                  <col style={{ width: "6rem" }} />
-                  <col style={{ width: "18rem" }} />
-                  <col />
-                  <col style={{ width: "8rem" }} />
+                  <col style={{ width: "6rem" }} />   {/* ID */}
+                  <col style={{ width: "6rem" }} />   {/* Icon */}
+                  <col style={{ width: "16rem" }} />  {/* Name */}
+                  <col />                              {/* Description */}
+                  <col style={{ width: "8rem" }} />   {/* Actions */}
                 </colgroup>
 
                 <thead>
-                  <tr className="bg-gray-100 text-left text-gray-600 uppercase text-xs tracking-wide">
-                    <th className="py-3 px-4">ID</th>
-                    <th className="py-3 px-4">Icon</th>
-                    <th className="py-3 px-4">Name</th>
-                    <th className="py-3 px-4">Description</th>
+                  <tr className="bg-gray-100 text-gray-600 uppercase text-xs tracking-wide">
+                    <th className="py-3 px-4 text-left">ID</th>
+                    <th className="py-3 px-4 text-center">Icon</th>
+                    <th className="py-3 px-4 text-left">Name</th>
+                    <th className="py-3 px-4 text-left">Description</th>
                     <th className="py-3 px-4 text-center">Actions</th>
                   </tr>
                 </thead>
@@ -255,27 +255,28 @@ export default function CategoryManagement() {
                 <tbody>
                   {categories.map((cat) => (
                     <tr key={cat.id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4">{cat.id}</td>
-                      <td className="py-3 px-4">
-                        <div className="flex justify-center">
-                          <img
-                            src={cat.icon}
-                            onError={(e) => {
-                              e.currentTarget.src =
-                                "https://via.placeholder.com/32x32?text=🖼️";
-                            }}
-                            alt={cat.name}
-                            className="w-8 h-8 rounded object-cover mr-7"
-                          />
-                        </div>
+                      <td className="py-3 px-4 text-gray-700 text-left whitespace-nowrap">
+                        {cat.id}
                       </td>
-                      <td className="py-3 px-4 font-semibold">{cat.name}</td>
-                      <td className="py-3 px-4">
-                        <div className="truncate" title={cat.description}>
+                      <td className="py-3 px-4 text-center">
+                        <img
+                          src={cat.icon}
+                          onError={(e) => {
+                            e.currentTarget.src = "https://via.placeholder.com/32x32?text=🖼️";
+                          }}
+                          alt={cat.name}
+                          className="w-8 h-8 rounded object-cover mx-auto"
+                        />
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-gray-800 text-left whitespace-nowrap">
+                        {cat.name}
+                      </td>
+                      <td className="py-3 px-4 text-gray-700 text-left">
+                        <div className="truncate max-w-xs" title={cat.description}>
                           {cat.description}
                         </div>
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-3">
                           <button
                             onClick={() => {
@@ -307,6 +308,7 @@ export default function CategoryManagement() {
                       </td>
                     </tr>
                   ))}
+
                   {categories.length === 0 && (
                     <tr>
                       <td colSpan={5} className="py-6 text-center text-gray-500">
@@ -319,6 +321,7 @@ export default function CategoryManagement() {
             </div>
           )}
         </div>
+
       </div>
 
       {/* Delete Confirmation Modal */}
