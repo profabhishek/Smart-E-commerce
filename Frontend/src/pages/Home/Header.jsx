@@ -82,7 +82,7 @@ export default function Header() {
       // ---------------- not signed in ----------------
       return (
         <Button variant="outline" size="sm" asChild>
-          <Link to="/email">Sign in</Link>
+          <Link className="cursor-pointer" to="/email">Sign in</Link>
         </Button>
       );
     }
@@ -93,7 +93,7 @@ export default function Header() {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+          <Button variant="ghost" className="relative h-8 w-8 rounded-full cursor-pointer">
             <Avatar className="h-9 w-9 border-2 cursor-pointer">
               <AvatarImage src={profile.avatar} />
               <AvatarFallback>{initials}</AvatarFallback>
@@ -104,15 +104,15 @@ export default function Header() {
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuLabel>{profile.name || profile.email}</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link to="/profile">Profile</Link>
+          <DropdownMenuItem asChild className="cursor-pointer">
+            <Link className="cursor-pointer" to="/profile">Profile</Link>
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link to="/orders">Orders</Link>
+          <DropdownMenuItem asChild className="cursor-pointer">
+            <Link className="cursor-pointer" to="/orders">Orders</Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-            <LogOut className="mr-2 h-4 w-4" />
+          <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
+            <LogOut className="mr-2 h-4 w-4 cursor-pointer" />
             Sign out
           </DropdownMenuItem>
         </DropdownMenuContent>

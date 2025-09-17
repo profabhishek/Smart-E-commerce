@@ -11,24 +11,19 @@ import HomePage from "../pages/Home/HomePage";
 import CategoryManagement from "../pages/admin/dashboard/CategoryManagement";
 import { Toaster } from "react-hot-toast";
 import "../App.css"
+import RouterErrorBoundary from "@/components/utils/RouterErrorBoundary";
 
 const router = createBrowserRouter([
-  { path: "/", element: <HomePage /> },
-  { path: "/email", element: <AuthEmail /> },
-  {
-    path: "/otp",
-    element: (
-      <RequireOtpGate>
-        <AuthOTP />
-      </RequireOtpGate>
-    ),
-  },
-  { path: "/profile", element: <Profile /> },
-  { path: "/admin/login", element: <LoginPage /> },
-  { path: "/admin/forgot-password", element: <ForgotPasswordPage /> },
-  { path: "/admin/reset-password", element: <ResetPasswordPage /> },
-  { path: "/admin/dashboard", element: <AdminDashboard /> },
-  { path: "/admin/categories", element: <CategoryManagement /> },
+  { path: "/", element: <HomePage />, errorElement: <RouterErrorBoundary /> },
+  { path: "/email", element: <AuthEmail />, errorElement: <RouterErrorBoundary /> },
+  { path: "/otp", element: (<RequireOtpGate><AuthOTP /></RequireOtpGate>), errorElement: <RouterErrorBoundary /> },
+  { path: "/profile", element: <Profile />, errorElement: <RouterErrorBoundary /> },
+  { path: "/admin/login", element: <LoginPage />, errorElement: <RouterErrorBoundary /> },
+  { path: "/admin/forgot-password", element: <ForgotPasswordPage />, errorElement: <RouterErrorBoundary /> },
+  { path: "/admin/reset-password", element: <ResetPasswordPage />, errorElement: <RouterErrorBoundary /> },
+  { path: "/admin/dashboard", element: <AdminDashboard />, errorElement: <RouterErrorBoundary /> },
+  { path: "/admin/categories", element: <CategoryManagement />, errorElement: <RouterErrorBoundary /> },
+  { path: "*", element: <RouterErrorBoundary /> },
 ]);
 
 export default function RoutesRoot() {

@@ -1,7 +1,18 @@
+import { useNavigate } from "react-router-dom";
 import AdminLayout from "./AdminLayout";
 import { IndianRupee, Package } from "lucide-react";
+import { useEffect } from "react";
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const role = localStorage.getItem("admin_role");
+    if (role !== "ROLE_ADMIN") {
+      navigate("/admin/login"); // redirect to login
+    }
+  }, [navigate]);
+
   return (
     <AdminLayout>
       {/* Top Bar */}
