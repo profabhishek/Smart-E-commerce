@@ -1,52 +1,70 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Header from "./Header";
 import Footer from "./Footer";
+import { useQuery } from "@tanstack/react-query";
 
 export default function HomePage() {
-  const [categories, setCategories] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-
   const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  // 🔹 Fetch Categories
   const fetchCategories = async () => {
-    try {
-      const res = await fetch(`${VITE_API_BASE_URL}/api/categories`);
-      if (!res.ok) throw new Error("Failed to fetch categories");
-      const data = await res.json();
-      setCategories(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Error fetching categories:", err);
-    }
+    const res = await fetch(`${VITE_API_BASE_URL}/api/categories`);
+    if (!res.ok) throw new Error("Failed to fetch categories");
+    return res.json();
   };
 
-  // 🔹 Fetch Products
   const fetchProducts = async () => {
-    try {
-      const res = await fetch(`${VITE_API_BASE_URL}/api/products`);
-      if (!res.ok) throw new Error("Failed to fetch products");
-      const data = await res.json();
-      setProducts(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Error fetching products:", err);
-    }
+    const res = await fetch(`${VITE_API_BASE_URL}/api/products`);
+    if (!res.ok) throw new Error("Failed to fetch products");
+    return res.json();
   };
 
-  // 🔹 Run both once on mount
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      await Promise.all([fetchCategories(), fetchProducts()]);
-      setLoading(false);
-    };
-    loadData();
-  }, []);
+  // ✅ v5 object form
+  const {
+    data: categories = [],
+    isLoading: categoriesLoading,
+  } = useQuery({
+    queryKey: ["categories"],
+    queryFn: fetchCategories,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000, // ⚡️ v5 uses gcTime instead of cacheTime
+    refetchOnWindowFocus: false,
+  });
+
+  const {
+    data: products = [],
+    isLoading: productsLoading,
+  } = useQuery({
+    queryKey: ["products"],
+    queryFn: fetchProducts,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const loading = categoriesLoading || productsLoading;
+
+  // ✅ interleave products across categories
+  const grouped = products.reduce((acc, p) => {
+    const catId = p.category?.id || "uncategorized";
+    if (!acc[catId]) acc[catId] = [];
+    acc[catId].push(p);
+    return acc;
+  }, {});
+  const interleaved = [];
+  const catKeys = Object.keys(grouped);
+  let hasMore = true;
+  while (hasMore) {
+    hasMore = false;
+    for (const key of catKeys) {
+      if (grouped[key].length > 0) {
+        interleaved.push(grouped[key].shift());
+        hasMore = true;
+      }
+    }
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
-      {/* Header */}
       <Header />
 
       {/* Hero Section */}
@@ -84,22 +102,16 @@ export default function HomePage() {
           </h2>
 
           {loading ? (
-            // 🔹 Featured Products Skeleton
+            // Skeleton
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-10">
               {[1, 2, 3].map((n) => (
                 <div
                   key={n}
                   className="relative group rounded-2xl overflow-hidden shadow-lg border border-gray-100 animate-pulse"
                 >
-                  {/* Poster image skeleton */}
                   <div className="w-full h-96 bg-gray-200" />
-
-                  {/* Gradient overlay */}
-                  <div className="absolute inset-0 bg-gray-300/30" />
-
-                  {/* Text overlay skeleton */}
                   <div className="absolute bottom-0 w-full p-5 space-y-3">
-                    <div className="h-5 w-3/4 bg-gray-200 rounded" />
+                    <div className="h-6 w-3/4 bg-gray-200 rounded" />
                     <div className="h-4 w-1/2 bg-gray-200 rounded" />
                     <div className="flex items-center justify-between mt-3">
                       <div className="h-5 w-16 bg-gray-200 rounded" />
@@ -109,83 +121,51 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
-          ) : (
+          ) : interleaved.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-10">
-              {products.length > 0 ? (
-                (() => {
-                  const grouped = products.reduce((acc, p) => {
-                    const catId = p.category?.id || "uncategorized";
-                    if (!acc[catId]) acc[catId] = [];
-                    acc[catId].push(p);
-                    return acc;
-                  }, {});
-                  const interleaved = [];
-                  const catKeys = Object.keys(grouped);
-                  let hasMore = true;
-                  while (hasMore) {
-                    hasMore = false;
-                    for (const key of catKeys) {
-                      if (grouped[key].length > 0) {
-                        interleaved.push(grouped[key].shift());
-                        hasMore = true;
-                      }
-                    }
-                  }
-
-                  return interleaved.slice(0, 6).map((p) => (
-                    <div
-                      key={p.id}
-                      className="relative group rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 border border-gray-100"
-                    >
-                      {/* Poster image */}
-                      <img
-                        src={p.photos?.[0] || "https://via.placeholder.com/400x600"}
-                        alt={p.name}
-                        className="w-full h-96 object-cover transform group-hover:scale-105 duration-500 opacity-100 group-hover:opacity-30 transition"
-                      />
-
-                      {/* Gradient overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-70 group-hover:opacity-90 transition"></div>
-
-                      {/* Text overlay */}
-                      <div className="absolute bottom-0 w-full bg-gradient-to-t from-black/80 via-black/50 to-transparent p-5 text-white">
-                        <h3 className="text-lg md:text-xl font-extrabold tracking-tight drop-shadow-lg">
-                          {p.name}
-                        </h3>
-                        <p className="text-sm text-gray-200 mt-1 line-clamp-2 drop-shadow-md">
-                          {p.description}
-                        </p>
-                        <div className="flex items-center justify-between mt-3">
-                          <span className="text-lg font-semibold text-green-400 drop-shadow-md">
-                            ₹{p.price}
-                          </span>
-                          <Link
-                            to={`/products/${p.id}`}
-                            className="px-4 py-1.5 text-sm font-semibold rounded-lg 
-                                      bg-gradient-to-r from-green-600 to-green-500 
-                                      hover:from-green-700 hover:to-green-600 
-                                      shadow-md transition cursor-pointer"
-                          >
-                            View
-                          </Link>
-                        </div>
-                      </div>
-
-                      {/* Category Tag */}
-                      {p.category && (
-                        <span className="absolute top-3 left-3 bg-green-600/90 text-white text-xs px-3 py-1 rounded-full shadow-md">
-                          {p.category.name}
-                        </span>
-                      )}
+              {interleaved.slice(0, 6).map((p) => (
+                <div
+                  key={p.id}
+                  className="relative group rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 border border-gray-100"
+                >
+                  <img
+                    src={p.photos?.[0] || "https://via.placeholder.com/400x600"}
+                    alt={p.name}
+                    className="w-full h-96 object-cover transform group-hover:scale-105 duration-500 opacity-100 group-hover:opacity-30 transition"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-70 group-hover:opacity-90 transition"></div>
+                  <div className="absolute bottom-0 w-full bg-gradient-to-t from-black/80 via-black/50 to-transparent p-5 text-white">
+                    <h3 className="text-lg md:text-xl font-extrabold tracking-tight drop-shadow-lg">
+                      {p.name}
+                    </h3>
+                    <p className="text-sm text-gray-200 mt-1 line-clamp-2 drop-shadow-md">
+                      {p.description}
+                    </p>
+                    <div className="flex items-center justify-between mt-3">
+                      <span className="text-lg font-semibold text-green-400 drop-shadow-md">
+                        ₹{p.price}
+                      </span>
+                      <Link
+                        to={`/products/${p.id}`}
+                        className="px-4 py-1.5 text-sm font-semibold rounded-lg 
+                          bg-gradient-to-r from-green-600 to-green-500 
+                          hover:from-green-700 hover:to-green-600 
+                          shadow-md transition cursor-pointer"
+                      >
+                        View
+                      </Link>
                     </div>
-                  ));
-                })()
-              ) : (
-                <p className="text-gray-500 text-center col-span-full">
-                  No products found
-                </p>
-              )}
+                  </div>
+                  {p.category && (
+                    <span className="absolute top-3 left-3 bg-green-600/90 text-white text-xs px-3 py-1 rounded-full shadow-md">
+                      {p.category.name}
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
+          ) : (
+            <p className="text-gray-500 text-center">No products found</p>
           )}
         </div>
       </section>
@@ -198,7 +178,6 @@ export default function HomePage() {
           </h2>
 
           {loading ? (
-            // 🔹 Categories Skeleton
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
               {[1, 2, 3, 4].map((n) => (
                 <div
@@ -235,7 +214,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Footer */}
       <Footer />
     </div>
   );
