@@ -29,7 +29,6 @@ export default function AuthOTP({ onVerify }) {
     }
   }, [email, navigate]);
 
-  /* ---------- helpers ---------- */
   const fullCode = useMemo(() => otp.join(""), [otp]);
 
   const submitCode = useCallback(
@@ -53,22 +52,16 @@ export default function AuthOTP({ onVerify }) {
         }
 
         const data = await res.json();
-        localStorage.setItem("user_id", data.userId);        // lowercase, consistent
+        localStorage.setItem("user_id", data.userId);
         localStorage.setItem("user_email", email);
         localStorage.setItem("user_role", "ROLE_USER");
-
-        if (data.name) {
-          localStorage.setItem("user_name", data.name);
-        }
-
-        if (data.token) {
-          localStorage.setItem("user_token", data.token);
-        }
+        if (data.name) localStorage.setItem("user_name", data.name);
+        if (data.token) localStorage.setItem("user_token", data.token);
 
         sessionStorage.removeItem("pendingEmail");
         onVerify?.(data);
         navigate("/", { replace: true });
-        window.location.reload(); 
+        window.location.reload();
       } catch (e) {
         toast.error(e.message || "Network error. Please try again.");
         setSubmitting(false);
@@ -77,7 +70,6 @@ export default function AuthOTP({ onVerify }) {
     [submitting, email, onVerify, navigate]
   );
 
-  /* ---------- input handling ---------- */
   const handleChange = (i, val) => {
     if (val.length > 1) val = val[0];
     const newOtp = [...otp];
@@ -94,15 +86,14 @@ export default function AuthOTP({ onVerify }) {
     }
   };
 
-  /* ---------- global paste handler ---------- */
   useEffect(() => {
     const onPaste = (e) => {
       const pasted = e.clipboardData.getData("text")?.trim();
-      if (!/^\d{6}$/.test(pasted)) return; // ignore non-6-digit strings
+      if (!/^\d{6}$/.test(pasted)) return;
       e.preventDefault();
       const newOtp = pasted.split("");
       setOtp(newOtp);
-      inputs.current[5].focus(); // focus last box
+      inputs.current[5].focus();
       submitCode(pasted);
     };
     window.addEventListener("paste", onPaste);
@@ -114,14 +105,18 @@ export default function AuthOTP({ onVerify }) {
   return (
     <>
       <Toaster position="top-center" />
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow">
-          <h1 className="mb-2 text-center text-2xl font-semibold">Enter OTP</h1>
-          <p className="mb-6 text-center text-sm text-gray-500">
-            We sent a code to {email}
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
+          {/* Heading */}
+          <h1 className="mb-2 text-center text-3xl font-bold text-gray-800">
+            Verify OTP
+          </h1>
+          <p className="mb-8 text-center text-sm text-gray-500">
+            We’ve sent a 6-digit code to <span className="font-medium text-gray-700">{email}</span>
           </p>
 
-          <div className="mb-4 flex justify-between gap-2">
+          {/* OTP inputs */}
+          <div className="mb-6 flex justify-between gap-2">
             {otp.map((digit, i) => (
               <input
                 key={i}
@@ -133,17 +128,36 @@ export default function AuthOTP({ onVerify }) {
                 onChange={(e) => handleChange(i, e.target.value)}
                 onKeyDown={(e) => handleKey(i, e)}
                 disabled={submitting}
-                className="h-12 w-12 rounded-lg border border-gray-300 text-center text-xl focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                className="h-14 w-12 rounded-lg border border-gray-300 bg-gray-50 text-center text-xl font-semibold 
+                           text-gray-700 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 
+                           focus:outline-none transition disabled:opacity-50"
               />
             ))}
           </div>
 
+          {/* Verify button */}
           <button
             onClick={() => submitCode(fullCode)}
             disabled={submitting || fullCode.length !== 6}
-            className="w-full rounded-lg bg-blue-600 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
-            {submitting ? "Verifying…" : "Verify"}
+            className="w-full rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 py-3 
+                       text-white font-semibold shadow-md hover:from-indigo-700 hover:to-blue-700 
+                       focus:ring-2 focus:ring-indigo-500 focus:outline-none transition 
+                       disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {submitting ? "Verifying…" : "Verify Code"}
           </button>
+
+          {/* Resend link */}
+          <p className="mt-6 text-center text-sm text-gray-500">
+            Didn’t receive the code?{" "}
+            <button
+              type="button"
+              className="text-indigo-600 font-medium hover:underline"
+              onClick={() => toast("Resend OTP functionality here")}
+            >
+              Resend
+            </button>
+          </p>
         </div>
       </div>
     </>

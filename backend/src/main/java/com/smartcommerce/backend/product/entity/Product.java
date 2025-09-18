@@ -1,5 +1,6 @@
 package com.smartcommerce.backend.product.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.math.BigDecimal;
@@ -24,10 +25,8 @@ public class Product {
     @Column(length = 1000)
     private String description;
 
-    @ElementCollection
-    @CollectionTable(name = "product_photos", joinColumns = @JoinColumn(name = "product_id"))
-    @Column(name = "photo_url")
-    private List<String> photos; // store URLs (at least 1, up to 5+)
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProductPhoto> photos;
 
     // 💰 Pricing
     @Column(precision = 10, scale = 2)
@@ -54,7 +53,8 @@ public class Product {
     // 🔖 Tags for search/SEO
     @ElementCollection
     @CollectionTable(name = "product_tags", joinColumns = @JoinColumn(name = "product_id"))
-    @Column(name = "tag")
+    @Column(name = "tags")
+    @JsonIgnore
     private List<String> tags;
 
     // 🕒 Tracking

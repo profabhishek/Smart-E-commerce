@@ -13,14 +13,12 @@ export default function AuthEmail() {
     let cancelled = false;
 
     const checkSession = async () => {
-      // 1) Fast path: localStorage says user is logged in
       const role = localStorage.getItem("user_role");
       if (role === "ROLE_USER") {
         navigate("/", { replace: true });
         return;
       }
 
-      // 2) Slow path: ask backend (uses httpOnly cookie `user_jwt`)
       try {
         const res = await fetch(`${VITE_API_BASE_URL}/api/user/profile`, {
           method: "GET",
@@ -29,7 +27,6 @@ export default function AuthEmail() {
 
         if (!cancelled && res.ok) {
           const user = await res.json();
-          // Persist minimal session info for UI
           localStorage.setItem("user_role", "ROLE_USER");
           if (user?.name && user.name.trim()) {
             localStorage.setItem("user_name", user.name);
@@ -80,7 +77,6 @@ export default function AuthEmail() {
         return;
       }
 
-      // Store for OTP step
       sessionStorage.setItem("pendingEmail", cleanEmail);
       navigate("/otp", { replace: true });
     } catch {
@@ -91,10 +87,9 @@ export default function AuthEmail() {
   };
 
   if (checkingSession) {
-    // small skeleton while we check server session
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow animate-pulse">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg animate-pulse">
           <div className="h-6 w-32 bg-gray-200 rounded mb-6" />
           <div className="h-10 w-full bg-gray-200 rounded mb-4" />
           <div className="h-10 w-full bg-gray-200 rounded" />
@@ -104,29 +99,47 @@ export default function AuthEmail() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow">
-        <h1 className="mb-6 text-center text-2xl font-semibold">Sign in</h1>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
+        {/* Brand / Heading */}
+        <h1 className="mb-2 text-center text-3xl font-bold text-gray-800">
+          Poster Pataka
+        </h1>
+        <p className="mb-8 text-center text-sm text-gray-500">
+          Sign in to Poster Pataka with your email
+        </p>
 
+        {/* Input */}
         <label className="mb-2 block text-sm font-medium text-gray-700">
-          E-mail
+          Email Address
         </label>
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
+          placeholder="Please Enter your Email"
           disabled={loading}
-          className="mb-4 w-full rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="mb-4 w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-700 shadow-sm 
+                     focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition"
         />
 
+        {/* Button */}
         <button
           onClick={handleSend}
           disabled={loading}
-          className="w-full rounded-lg bg-blue-600 py-2 text-white hover:bg-blue-700 disabled:opacity-60"
+          className="w-full rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 py-2.5 
+                     text-white font-semibold shadow-md hover:from-indigo-700 hover:to-blue-700 
+                     focus:ring-2 focus:ring-indigo-500 focus:outline-none transition disabled:opacity-60 cursor-pointer"
         >
           {loading ? "Sending…" : "Send OTP"}
         </button>
+
+        {/* Footer Note */}
+        <p className="mt-6 text-center text-xs text-gray-400">
+          By continuing, you agree to our{" "}
+            Terms of Service{" "}and{" "}Privacy Policy
+          .
+        </p>
       </div>
     </div>
   );

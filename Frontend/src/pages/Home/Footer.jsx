@@ -28,6 +28,7 @@ export default function Footer() {
               <li><Link to="/profile" className="hover:text-white cursor-pointer">My Account</Link></li>
               <li><Link to="/orders" className="hover:text-white cursor-pointer">Orders</Link></li>
               <li><Link to="/cart" className="hover:text-white cursor-pointer">Cart</Link></li>
+              <li><Link to="/admin/login" className="hover:text-white cursor-pointer">Admin Login</Link></li>
             </ul>
           </div>
 
