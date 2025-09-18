@@ -11,24 +11,40 @@ import HomePage from "../pages/Home/HomePage";
 import CategoryManagement from "../pages/admin/dashboard/CategoryManagement";
 import { Toaster } from "react-hot-toast";
 import "../App.css";
+import RouterErrorBoundary from "@/components/utils/RouterErrorBoundary";
+import CategoryProducts from "../pages/products/CategoryProducts";
+import AppLayout from "../layout/AppLayout";
+import CartPage from "../pages/cart/CartPage";
 
 const router = createBrowserRouter([
-  { path: "/", element: <HomePage /> },
-  { path: "/email", element: <AuthEmail /> },
   {
-    path: "/otp",
-    element: (
-      <RequireOtpGate>
-        <AuthOTP />
-      </RequireOtpGate>
-    ),
+    element: <AppLayout />, // 👈 wrapper
+    errorElement: <RouterErrorBoundary />,
+    children: [
+      { path: "/", element: <HomePage /> },
+      { path: "/email", element: <AuthEmail /> },
+      {
+        path: "/otp",
+        element: (
+          <RequireOtpGate>
+            <AuthOTP />
+          </RequireOtpGate>
+        ),
+      },
+      { path: "/profile", element: <Profile /> },
+      { path: "/admin/login", element: <LoginPage /> },
+      { path: "/admin/forgot-password", element: <ForgotPasswordPage /> },
+      { path: "/admin/reset-password", element: <ResetPasswordPage /> },
+      { path: "/admin/dashboard", element: <AdminDashboard /> },
+      { path: "/admin/categories", element: <CategoryManagement /> },
+      { path: "/category/:id", element: <CategoryProducts /> },
+      {
+        path: "/cart",
+        element: <CartPage userId={localStorage.getItem("user_id")} />,
+      },
+      { path: "*", element: <RouterErrorBoundary /> },
+    ],
   },
-  { path: "/profile", element: <Profile /> },
-  { path: "/admin/login", element: <LoginPage /> },
-  { path: "/admin/forgot-password", element: <ForgotPasswordPage /> },
-  { path: "/admin/reset-password", element: <ResetPasswordPage /> },
-  { path: "/admin/dashboard", element: <AdminDashboard /> },
-  { path: "/admin/categories", element: <CategoryManagement /> },
 ]);
 
 export default function RoutesRoot() {
@@ -36,7 +52,6 @@ export default function RoutesRoot() {
     <>
       <RouterProvider router={router} />
       {/* ✅ Global Toaster here */}
-
       <Toaster
         position="top-center"
         toastOptions={{
