@@ -192,7 +192,7 @@ export default function Profile() {
   return (
     <>
       <Header />
-      <Toaster position="top-right" />
+      <Toaster position="top-center" />
       <div className="flex min-h-screen bg-gray-50 p-6">
         <div className="w-full max-w-5xl mx-auto space-y-8">
           {/* Profile Info */}

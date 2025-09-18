@@ -146,7 +146,7 @@ export default function Header() {
             <Link to="/cart">
               <ShoppingCart className="h-5 w-5" />
               {cartCount > 0 && (
-                <span className="absolute -right-2 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                <span className="absolute -right-2 -top-1 flex h-5 w-5 items-center justify-center rounded-full text-xs text-primary-foreground bg-green-600">
                   {cartCount}
                 </span>
               )}
