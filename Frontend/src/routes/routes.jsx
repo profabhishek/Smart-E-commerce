@@ -16,6 +16,7 @@ import CategoryProducts from "../pages/products/CategoryProducts";
 import AppLayout from "../layout/AppLayout";
 import CartPage from "../pages/cart/CartPage";
 import ProductManagement from "../pages/admin/dashboard/ProductManagement";
+import UserManagement from "../pages/admin/dashboard/UserManagement";
 
 const router = createBrowserRouter([
   {
@@ -39,6 +40,9 @@ const router = createBrowserRouter([
       { path: "/admin/dashboard", element: <AdminDashboard /> },
       { path: "/admin/categories", element: <CategoryManagement /> },
       { path: "/category/:id", element: <CategoryProducts /> },
+      { path: "/admin/products", element: <ProductManagement /> },
+      { path: "/admin/users", element: <UserManagement /> },
+
       {
         path: "/cart",
         element: <CartPage userId={localStorage.getItem("user_id")} />,

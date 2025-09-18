@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -51,11 +52,10 @@ public class Product {
     private Double weight;      // shipping weight
 
     // 🔖 Tags for search/SEO
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "product_tags", joinColumns = @JoinColumn(name = "product_id"))
     @Column(name = "tags")
-    @JsonIgnore
-    private List<String> tags;
+    private List<String> tags = new ArrayList<>();
 
     // 🕒 Tracking
     private LocalDateTime createdAt;

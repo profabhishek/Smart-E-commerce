@@ -103,7 +103,7 @@ export default function CategoryProducts() {
                     {/* Image */}
                     <div className="relative">
                       <img
-                        src={p.photos?.[0] || "https://via.placeholder.com/400x600"}
+                        src={p.photos?.[0]?.url || "https://via.placeholder.com/400x600"}
                         alt={p.name}
                         className="w-full h-80 object-cover transform group-hover:scale-105 duration-500"
                       />

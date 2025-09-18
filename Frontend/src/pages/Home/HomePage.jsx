@@ -128,11 +128,11 @@ export default function HomePage() {
                   key={p.id}
                   className="relative group rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 border border-gray-100"
                 >
-                  <img
-                    src={p.photos?.[0] || "https://via.placeholder.com/400x600"}
-                    alt={p.name}
-                    className="w-full h-96 object-cover transform group-hover:scale-105 duration-500 opacity-100 group-hover:opacity-30 transition"
-                  />
+            <img
+              src={p.photos?.[0]?.url || "https://via.placeholder.com/400x600"}
+              alt={p.name}
+              className="w-full h-96 object-cover transform group-hover:scale-105 duration-500 opacity-100 group-hover:opacity-30 transition"
+            />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-70 group-hover:opacity-90 transition"></div>
                   <div className="absolute bottom-0 w-full bg-gradient-to-t from-black/80 via-black/50 to-transparent p-5 text-white">
                     <h3 className="text-lg md:text-xl font-extrabold tracking-tight drop-shadow-lg">

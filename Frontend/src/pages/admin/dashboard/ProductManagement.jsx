@@ -4,26 +4,18 @@ import AdminLayout from "./AdminLayout";
 import { Edit, Trash2, Plus, Tag as TagIcon, Search, X, Upload } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
-/**
- * ⚠️ IMPORTANT
- * Wire this to your real uploader that returns public URLs.
- * Expected response: string[] of uploaded file URLs.
- * Example backend (multipart): POST /api/admin/uploads
- */
-async function uploadFiles(productId, files, VITE_API_BASE_URL) {
+/* ---------------- Upload helpers ---------------- */
+
+/** Edit mode: upload and attach to a specific product id */
+async function uploadFilesToProduct(productId, files, VITE_API_BASE_URL) {
   try {
     const formData = new FormData();
     [...files].forEach((f) => formData.append("files", f));
-
-    const res = await fetch(
-      `${VITE_API_BASE_URL}/api/admin/products/${productId}/photos`,
-      {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      }
-    );
-
+    const res = await fetch(`${VITE_API_BASE_URL}/api/admin/products/${productId}/photos`, {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
     if (!res.ok) throw new Error("Upload failed");
     const data = await res.json(); // expect { urls: [...] }
     if (Array.isArray(data?.urls)) return data.urls;
@@ -35,13 +27,37 @@ async function uploadFiles(productId, files, VITE_API_BASE_URL) {
   }
 }
 
+/** Create mode: generic upload that returns public URLs (not attached yet) */
+async function uploadFilesGeneric(files, VITE_API_BASE_URL) {
+  try {
+    const formData = new FormData();
+    [...files].forEach((f) => formData.append("files", f));
+    const res = await fetch(`${VITE_API_BASE_URL}/api/admin/uploads`, {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error("Upload failed");
+    const data = await res.json(); // expect { urls: [...] } or [...]
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.urls)) return data.urls;
+    throw new Error("Unexpected upload response");
+  } catch (e) {
+    console.error(e);
+    toast.error(e.message || "Upload error");
+    return [];
+  }
+}
+
+/* ---------------- Form helpers ---------------- */
+
 function initialForm() {
   return {
     id: null,
     sku: "",
     name: "",
     description: "",
-    photos: [""], // array of URLs (strings)
+    photos: [{ id: null, url: "" }], // keep as objects in UI
     price: "",
     discountPrice: "",
     rating: "",
@@ -52,7 +68,7 @@ function initialForm() {
     width: "",
     height: "",
     weight: "",
-    tags: [], // array of strings (chips)
+    tags: [],
     categoryId: "",
   };
 }
@@ -76,14 +92,16 @@ export default function ProductManagement() {
   const [filterMaxPrice, setFilterMaxPrice] = useState("");
   const [filterMinRating, setFilterMinRating] = useState("");
   const [filterInStock, setFilterInStock] = useState(false);
-  const [sortBy, setSortBy] = useState("newest"); // newest | priceAsc | priceDesc | ratingDesc
+  const [sortBy, setSortBy] = useState("newest");
 
-  // Tag input temp
+  // Tags input temp value
   const [tagInput, setTagInput] = useState("");
 
   const navigate = useNavigate();
   const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const formRef = useRef(null);
+
+  /* ---------------- Effects ---------------- */
 
   useEffect(() => {
     const role = localStorage.getItem("admin_role");
@@ -96,27 +114,31 @@ export default function ProductManagement() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
-    const fetchProducts = async () => {
+  const fetchProducts = async () => {
     setLoading(true);
     try {
-        const res = await fetch(`${VITE_API_BASE_URL}/api/products`);
-        const data = await res.json();
+      const res = await fetch(`${VITE_API_BASE_URL}/api/products`);
+      const data = await res.json();
 
-        const normalized = Array.isArray(data)
+      // Normalize photos to objects with {id, url}
+      const normalized = Array.isArray(data)
         ? data.map((p) => ({
             ...p,
-            photos: (p.photos || []).map((ph) => ph.photo_url || ph), // ✅ extract URLs
-            }))
+            photos: (p.photos || []).map((ph) => ({
+              id: ph.id,
+              url: ph.url ?? ph.photo_url, // support both shapes
+            })),
+          }))
         : [];
 
-        setProducts(normalized);
+      setProducts(normalized);
     } catch (e) {
-        console.error(e);
-        toast.error("Failed to load products");
+      console.error(e);
+      toast.error("Failed to load products");
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-    };
+  };
 
   const fetchCategories = async () => {
     try {
@@ -129,6 +151,8 @@ export default function ProductManagement() {
     }
   };
 
+  /* ---------------- UI helpers ---------------- */
+
   const startCreate = () => {
     setIsEditing(false);
     setForm(initialForm());
@@ -139,100 +163,97 @@ export default function ProductManagement() {
     }
   };
 
-  const normalized = (obj) => {
-    // Normalize arrays & numeric strings for comparison
+  const normalizedForCompare = (obj) => {
     const clone = JSON.parse(JSON.stringify(obj));
     clone.price = clone.price === "" ? "" : Number(clone.price);
     clone.discountPrice = clone.discountPrice === "" ? "" : Number(clone.discountPrice);
     clone.rating = clone.rating === "" ? "" : Number(clone.rating);
     clone.stock = clone.stock === "" ? "" : Number(clone.stock);
     clone.tags = (clone.tags || []).map((t) => t.trim()).filter(Boolean);
-    clone.photos = (clone.photos || []).map((p) => (p || "").trim()).filter(Boolean);
+    clone.photos = (clone.photos || []).map((p) => (p.url || "").trim()).filter(Boolean);
     return clone;
   };
 
   const isFormFilled = form.name.trim() !== "" && form.categoryId !== "";
   const isFormChanged = useMemo(() => {
     if (!isEditing || !originalProduct) return false;
-    return JSON.stringify(normalized(form)) !== JSON.stringify(normalized(originalProduct));
+    return JSON.stringify(normalizedForCompare(form)) !== JSON.stringify(normalizedForCompare(originalProduct));
   }, [form, isEditing, originalProduct]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  /* ---------------- Submit ---------------- */
 
-    if (!form.categoryId) {
-      toast.error("Please select a category");
-      return;
-    }
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (!form.categoryId) {
+    toast.error("Please select a category");
+    return;
+  }
 
-    const url = isEditing
-      ? `${VITE_API_BASE_URL}/api/admin/products/${form.id}?categoryId=${form.categoryId}`
-      : `${VITE_API_BASE_URL}/api/admin/products?categoryId=${form.categoryId}`;
-    const method = isEditing ? "PUT" : "POST";
+  try {
+    // 1. Prepare payload without uploading yet
+    const { id, categoryId, ...payload } = form;
 
-    const {
-      id,
-      categoryId,
-      // keep arrays in body: photos[], tags[]
-      ...payload
-    } = form;
-
-    // Build body ensuring numeric types where relevant
     const body = {
       ...payload,
       price: form.price === "" ? undefined : Number(form.price),
       discountPrice: form.discountPrice === "" ? undefined : Number(form.discountPrice),
       rating: form.rating === "" ? undefined : Number(form.rating),
       stock: form.stock === "" ? undefined : Number(form.stock),
-      photos: (form.photos || []).map((p) => p.trim()).filter(Boolean),
+      // only keep existing photo objects here, new files will be uploaded after save
+      photos: form.photos.filter((p) => p.url && !p.file).map((p) => ({
+        id: p.id ?? null,
+        url: p.url,
+      })),
       tags: (form.tags || []).map((t) => t.trim()).filter(Boolean),
     };
 
-    try {
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(body),
-      });
+    // 2. Save product (create or update)
+    const url = isEditing
+      ? `${VITE_API_BASE_URL}/api/admin/products/${form.id}?categoryId=${form.categoryId}`
+      : `${VITE_API_BASE_URL}/api/admin/products?categoryId=${form.categoryId}`;
+    const method = isEditing ? "PUT" : "POST";
 
-      if (!res.ok) throw new Error("Save failed");
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body), // ✅ don't wipe photos here
+    });
 
-      toast.success(isEditing ? "Product updated!" : "Product created!");
-      startCreate();
-      fetchProducts();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to save product");
+    if (!res.ok) throw new Error("Save failed");
+
+    const savedProduct = await res.json();
+
+    // 3. Upload new files only after product is saved
+    const newFiles = form.photos.filter((p) => p.file);
+    if (newFiles.length) {
+      const formData = new FormData();
+      newFiles.forEach((p) => formData.append("files", p.file));
+
+      const uploadRes = await fetch(
+        `${VITE_API_BASE_URL}/api/admin/products/${savedProduct.id}/photos`,
+        {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        }
+      );
+
+      if (!uploadRes.ok) throw new Error("Photo upload failed");
+      toast.success("Photos uploaded!");
     }
-  };
 
-  const confirmDelete = (id) => {
-    setDeleteId(id);
-    setShowDeleteModal(true);
-  };
+    toast.success(isEditing ? "Product updated!" : "Product created!");
+    startCreate();
+    fetchProducts();
+  } catch (err) {
+    console.error(err);
+    toast.error(err.message || "Failed to save product");
+  }
+};
 
-  const handleDelete = async () => {
-    try {
-      const res = await fetch(`${VITE_API_BASE_URL}/api/admin/products/${deleteId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Delete failed");
+  /* ---------------- Tags ---------------- */
 
-      toast.success("Product deleted!");
-      if (isEditing && form.id === deleteId) startCreate();
-      fetchProducts();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to delete product");
-    } finally {
-      setShowDeleteModal(false);
-      setDeleteId(null);
-    }
-  };
-
-  // TAGS: add on comma or Enter
   const tryAddTag = () => {
     const t = tagInput.trim();
     if (!t) return;
@@ -241,120 +262,138 @@ export default function ProductManagement() {
     }
     setTagInput("");
   };
+
   const onTagKeyDown = (e) => {
     if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
       tryAddTag();
     } else if (e.key === "Backspace" && !tagInput && form.tags.length) {
-      // remove last tag on backspace when input empty
       setForm((f) => ({ ...f, tags: f.tags.slice(0, -1) }));
     }
   };
+
   const removeTag = (t) => {
     setForm((f) => ({ ...f, tags: f.tags.filter((x) => x !== t) }));
   };
 
-// PHOTOS: add/remove URL inputs
-const addPhotoField = () => {
-  setForm((f) => ({ ...f, photos: [...f.photos, { id: null, url: "" }] }));
-};
+  /* ---------------- Photos ---------------- */
 
-const setPhotoAt = (idx, val) => {
-  setForm((f) => {
-    const next = [...f.photos];
-    next[idx] = { ...next[idx], url: val };
-    return { ...f, photos: next };
-  });
-};
+  const addPhotoField = () => {
+    setForm((f) => ({ ...f, photos: [...f.photos, { id: null, url: "" }] }));
+  };
 
-const removePhotoAt = (idx) => {
-  setForm((f) => {
-    const next = [...f.photos];
-    next.splice(idx, 1);
-    if (next.length === 0) next.push({ id: null, url: "" });
-    return { ...f, photos: next };
-  });
-};
+  const setPhotoAt = (idx, val) => {
+    setForm((f) => {
+      const next = [...f.photos];
+      next[idx] = { ...next[idx], url: val };
+      return { ...f, photos: next };
+    });
+  };
 
-// Upload from local drive → get URLs → push to photos
-const onLocalUpload = async (e) => {
+  const removePhotoAt = (idx) => {
+    setForm((f) => {
+      const next = [...f.photos];
+      next.splice(idx, 1);
+      if (next.length === 0) next.push({ id: null, url: "" });
+      return { ...f, photos: next };
+    });
+  };
+
+  // Delete Api
+  const confirmDelete = (id) => {
+    setDeleteId(id);
+    setShowDeleteModal(true);
+    };
+
+    const handleDelete = async () => {
+    if (!deleteId) return;
+    try {
+        const res = await fetch(`${VITE_API_BASE_URL}/api/admin/products/${deleteId}`, {
+        method: "DELETE",
+        credentials: "include",
+        });
+        if (!res.ok) throw new Error("Delete failed");
+        toast.success("Product deleted!");
+        setShowDeleteModal(false);
+        setDeleteId(null);
+        fetchProducts();
+    } catch (err) {
+        console.error(err);
+        toast.error(err.message || "Delete error");
+    }
+    };
+
+// Upload from local drive → only preview, upload on Save
+const onLocalUpload = (e) => {
   const files = e.target.files;
   if (!files || !files.length) return;
 
-  // 🔑 Require a saved product first (editing mode)
-  if (!form.id) {
-    toast.error("Save product first before uploading photos");
-    e.target.value = "";
-    return;
-  }
+  const previews = [...files].map((file) => ({
+    id: null,
+    url: URL.createObjectURL(file), // temporary preview
+    file, // keep actual file for upload later
+  }));
 
-  const urls = await uploadFiles(form.id, files, VITE_API_BASE_URL);
-  if (urls.length) {
-    setForm((f) => ({
-      ...f,
-      photos: [
-        ...(f.photos || []),
-        ...urls.map((url) => ({ id: null, url })), // ✅ wrap as objects
-      ],
-    }));
-    toast.success(`Uploaded ${urls.length} photo${urls.length > 1 ? "s" : ""}`);
-  }
+  setForm((f) => ({
+    ...f,
+    photos: [...(f.photos || []), ...previews],
+  }));
+
+  toast.success(`Added ${files.length} photo${files.length > 1 ? "s" : ""}`);
   e.target.value = "";
 };
 
-// Delete Photo
-async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
-  try {
-    const res = await fetch(
-      `${VITE_API_BASE_URL}/api/admin/products/${productId}/photos/${photoId}`,
-      { method: "DELETE", credentials: "include" }
-    );
-    if (!res.ok) throw new Error("Delete failed");
-    toast.success("Photo deleted");
-    return true;
-  } catch (e) {
-    console.error(e);
-    toast.error(e.message || "Delete error");
-    return false;
-  }
-}
 
-  // SEARCH + FILTERS + SORT
+  async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
+    try {
+      const res = await fetch(
+        `${VITE_API_BASE_URL}/api/admin/products/${productId}/photos/${photoId}`,
+        { method: "DELETE", credentials: "include" }
+      );
+      if (!res.ok) throw new Error("Delete failed");
+      toast.success("Photo deleted");
+      return true;
+    } catch (e) {
+      console.error(e);
+      toast.error(e.message || "Delete error");
+      return false;
+    }
+  }
+
+  /* ---------------- Filtering & sorting ---------------- */
+
   const filteredProducts = useMemo(() => {
     const query = search.toLowerCase();
     let list = [...products];
 
-    // search
     if (query) {
-      list = list.filter(
+    list = list.filter(
         (p) =>
-          p.name?.toLowerCase().includes(query) ||
-          p.description?.toLowerCase().includes(query) ||
-          p.tags?.some((t) => t.toLowerCase().includes(query))
-      );
+        p.name?.toLowerCase().includes(query) ||
+        p.description?.toLowerCase().includes(query) ||
+        (Array.isArray(p.tags) &&
+            p.tags.some((t) =>
+            String(t).toLowerCase().includes(query)
+            ))
+    );
     }
 
-    // category
     if (filterCategoryId) {
       list = list.filter((p) => String(p.category?.id || "") === String(filterCategoryId));
     }
 
-    // price
     const min = filterMinPrice !== "" ? Number(filterMinPrice) : null;
     const max = filterMaxPrice !== "" ? Number(filterMaxPrice) : null;
     if (min !== null) list = list.filter((p) => Number(p.discountPrice || p.price || 0) >= min);
     if (max !== null) list = list.filter((p) => Number(p.discountPrice || p.price || 0) <= max);
 
-    // rating
     const rmin = filterMinRating !== "" ? Number(filterMinRating) : null;
     if (rmin !== null) list = list.filter((p) => Number(p.rating || 0) >= rmin);
 
-    // inStock
     if (filterInStock) {
       list = list.filter((p) => p.inStock === true || (p.stock ?? 0) > 0);
     }
 
-    // sort
     list.sort((a, b) => {
       const pa = Number(a.discountPrice || a.price || 0);
       const pb = Number(b.discountPrice || b.price || 0);
@@ -363,8 +402,7 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
       if (sortBy === "priceAsc") return pa - pb;
       if (sortBy === "priceDesc") return pb - pa;
       if (sortBy === "ratingDesc") return rb - ra;
-      // newest last (assuming larger id = newer)
-      return Number(b.id || 0) - Number(a.id || 0);
+      return Number(b.id || 0) - Number(a.id || 0); // newest
     });
 
     return list;
@@ -378,6 +416,8 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
     filterInStock,
     sortBy,
   ]);
+
+  /* ---------------- Render ---------------- */
 
   return (
     <AdminLayout>
@@ -458,95 +498,82 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
               />
             </div>
 
-            {/* Photos (URL fields + uploader) */}
+            {/* Photos */}
             <div className="md:col-span-3">
-                <label className="text-sm font-medium text-gray-700">Photos</label>
-                <p className="text-xs text-gray-500 mb-2">
-                    Paste image URLs or upload multiple files. Uploaded files will be converted to URLs.
-                </p>
+              <label className="text-sm font-medium text-gray-700">Photos</label>
+              <p className="text-xs text-gray-500 mb-2">
+                Paste image URLs or upload multiple files. Uploaded files will be converted to URLs.
+              </p>
 
-                {/* Upload + Add URL */}
-                <div className="flex items-center gap-3 mb-3">
-                    <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 cursor-pointer">
-                    <Upload size={16} />
-                    <span>Upload from device</span>
+              <div className="flex items-center gap-3 mb-3">
+                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 cursor-pointer">
+                  <Upload size={16} />
+                  <span>Upload from device</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={onLocalUpload}
+                    className="hidden"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={addPhotoField}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 cursor-pointer"
+                >
+                  <Plus size={16} />
+                  Add URL field
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {form.photos.map((photo, idx) => (
+                  <div key={photo.id ?? `new-${idx}`} className="flex items-center gap-2">
                     <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={onLocalUpload}
-                        className="hidden"
+                      type="text"
+                      placeholder="https://cdn.example.com/image.jpg"
+                      value={photo.url || ""}
+                      onChange={(e) => setPhotoAt(idx, e.target.value)}
+                      className="border p-2 rounded-lg focus:ring-2 focus:ring-green-500 flex-1"
                     />
-                    </label>
-
+                    {photo.url ? (
+                      <img
+                        src={photo.url}
+                        onError={(e) => (e.currentTarget.style.display = "none")}
+                        alt="preview"
+                        className="w-12 h-12 rounded object-cover"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded bg-gray-100 flex items-center justify-center text-xs text-gray-400">
+                        preview
+                      </div>
+                    )}
                     <button
-                    type="button"
-                    onClick={addPhotoField}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 cursor-pointer"
+                      type="button"
+                      onClick={async () => {
+                        if (form.id && photo.id) {
+                          const ok = await deletePhoto(form.id, photo.id, VITE_API_BASE_URL);
+                          if (ok) {
+                            setForm((f) => ({
+                              ...f,
+                              photos: f.photos.filter((p) => p.id !== photo.id),
+                            }));
+                          }
+                        } else {
+                          removePhotoAt(idx);
+                        }
+                      }}
+                      className="p-2 rounded-lg border hover:bg-gray-50 cursor-pointer"
+                      title="Remove"
                     >
-                    <Plus size={16} />
-                    Add URL field
+                      <X size={16} />
                     </button>
-                </div>
-
-                {/* Fields with preview + remove */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {form.photos.map((photo, idx) => (
-                    <div key={photo.id || idx} className="flex items-center gap-2">
-                        <input
-                        type="text"
-                        placeholder="https://cdn.example.com/image.jpg"
-                        value={photo.url || ""}
-                        onChange={(e) => {
-                            const next = [...form.photos];
-                            next[idx] = { ...photo, url: e.target.value };
-                            setForm({ ...form, photos: next });
-                        }}
-                        className="border p-2 rounded-lg focus:ring-2 focus:ring-green-500 flex-1"
-                        />
-                        {photo.url ? (
-                        <img
-                            src={photo.url}
-                            onError={(e) => (e.currentTarget.style.display = "none")}
-                            alt="preview"
-                            className="w-12 h-12 rounded object-cover"
-                        />
-                        ) : (
-                        <div className="w-12 h-12 rounded bg-gray-100 flex items-center justify-center text-xs text-gray-400">
-                            preview
-                        </div>
-                        )}
-                        <button
-                        type="button"
-                        onClick={async () => {
-                            if (form.id && photo.id) {
-                            // backend delete
-                            const ok = await deletePhoto(form.id, photo.id, VITE_API_BASE_URL);
-                            if (ok) {
-                                setForm((f) => ({
-                                ...f,
-                                photos: f.photos.filter((p) => p.id !== photo.id),
-                                }));
-                            }
-                            } else {
-                            // not saved yet → just remove locally
-                            setForm((f) => {
-                                const next = [...f.photos];
-                                next.splice(idx, 1);
-                                return { ...f, photos: next };
-                            });
-                            }
-                        }}
-                        className="p-2 rounded-lg border hover:bg-gray-50 cursor-pointer"
-                        title="Remove"
-                        >
-                        <X size={16} />
-                        </button>
-                    </div>
-                    ))}
-                </div>
+                  </div>
+                ))}
+              </div>
             </div>
-
 
             {/* Pricing & Stock */}
             <div className="flex flex-col">
@@ -609,7 +636,7 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
               </select>
             </div>
 
-            {/* Tags (chips) */}
+            {/* Tags */}
             <div className="md:col-span-3">
               <label className="text-sm font-medium text-gray-700 mb-1">Tags</label>
               <div className="border rounded-lg p-2 focus-within:ring-2 focus-within:ring-green-500">
@@ -642,9 +669,7 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
                   />
                 </div>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Example: anime, demonslayer, motivational
-              </p>
+              <p className="text-xs text-gray-500 mt-1">Example: anime, demonslayer, motivational</p>
             </div>
 
             {/* Optional attributes */}
@@ -712,8 +737,7 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
                 className={`${
                   isEditing ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"
                 } text-white px-4 py-2 rounded-lg ${
-                  (isEditing ? !isFormChanged : !isFormFilled) &&
-                  "opacity-50 cursor-not-allowed"
+                  (isEditing ? !isFormChanged : !isFormFilled) && "opacity-50 cursor-not-allowed"
                 } cursor-pointer`}
               >
                 {isEditing ? "Save Changes" : "Create Product"}
@@ -738,7 +762,6 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
 
           {/* Search + Filters */}
           <div className="mb-4 grid grid-cols-1 md:grid-cols-12 gap-3">
-            {/* Search */}
             <div className="relative md:col-span-4">
               <input
                 type="text"
@@ -750,7 +773,6 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
               <Search size={18} className="absolute left-3 top-2.5 text-gray-400" />
             </div>
 
-            {/* Category filter */}
             <select
               value={filterCategoryId}
               onChange={(e) => setFilterCategoryId(e.target.value)}
@@ -764,7 +786,6 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
               ))}
             </select>
 
-            {/* Price min/max */}
             <input
               type="number"
               placeholder="Min ₹"
@@ -780,7 +801,6 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
               className="md:col-span-2 rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-500"
             />
 
-            {/* Rating min */}
             <input
               type="number"
               step="0.1"
@@ -792,7 +812,6 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
               className="md:col-span-1 rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-500"
             />
 
-            {/* In stock toggle */}
             <label className="md:col-span-1 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 cursor-pointer">
               <input
                 type="checkbox"
@@ -802,7 +821,6 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
               <span className="text-sm text-gray-700">In stock</span>
             </label>
 
-            {/* Sort */}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -825,7 +843,7 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
                   className="border rounded-xl shadow-sm hover:shadow-lg transition bg-white flex flex-col"
                 >
                   <img
-                    src={p.photos?.[0] || "https://via.placeholder.com/400x300?text=No+Image"}
+                    src={p.photos?.[0]?.url || "https://via.placeholder.com/400x300?text=No+Image"}
                     alt={p.name}
                     className="w-full h-48 object-cover rounded-t-xl"
                   />
@@ -855,7 +873,7 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
                               sku: p.sku ?? "",
                               name: p.name ?? "",
                               description: p.description ?? "",
-                              photos: p.photos ?? [""],
+                              photos: (p.photos || []).map((ph) => ({ id: ph.id ?? null, url: ph.url ?? "" })),
                               price: p.price ?? "",
                               discountPrice: p.discountPrice ?? "",
                               rating: p.rating ?? "",
@@ -874,7 +892,7 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
                               sku: p.sku ?? "",
                               name: p.name ?? "",
                               description: p.description ?? "",
-                              photos: p.photos ?? [""],
+                              photos: (p.photos || []).map((ph) => ({ id: ph.id ?? null, url: ph.url ?? "" })),
                               price: p.price ?? "",
                               discountPrice: p.discountPrice ?? "",
                               rating: p.rating ?? "",
@@ -924,7 +942,7 @@ async function deletePhoto(productId, photoId, VITE_API_BASE_URL) {
       {/* Delete Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-[rgba(0,0,0,0.5)] backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-xl shadow-lg p-6 w/full max-w-md">
             <h3 className="text-lg font-semibold mb-2">Confirm Deletion</h3>
             <p className="text-sm text-gray-600 mb-6">
               Are you sure you want to delete this product? This action cannot be undone.
