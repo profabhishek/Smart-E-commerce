@@ -10,7 +10,7 @@ import AdminDashboard from "../pages/admin/dashboard/AdminDashboard";
 import HomePage from "../pages/Home/HomePage";
 import CategoryManagement from "../pages/admin/dashboard/CategoryManagement";
 import { Toaster } from "react-hot-toast";
-import "../App.css"
+import "../App.css";
 import RouterErrorBoundary from "@/components/utils/RouterErrorBoundary";
 import CategoryProducts from "../pages/products/CategoryProducts";
 import AppLayout from "../layout/AppLayout";
@@ -24,7 +24,14 @@ const router = createBrowserRouter([
     children: [
       { path: "/", element: <HomePage /> },
       { path: "/email", element: <AuthEmail /> },
-      { path: "/otp", element: (<RequireOtpGate><AuthOTP /></RequireOtpGate>) },
+      {
+        path: "/otp",
+        element: (
+          <RequireOtpGate>
+            <AuthOTP />
+          </RequireOtpGate>
+        ),
+      },
       { path: "/profile", element: <Profile /> },
       { path: "/admin/login", element: <LoginPage /> },
       { path: "/admin/forgot-password", element: <ForgotPasswordPage /> },
@@ -32,8 +39,10 @@ const router = createBrowserRouter([
       { path: "/admin/dashboard", element: <AdminDashboard /> },
       { path: "/admin/categories", element: <CategoryManagement /> },
       { path: "/category/:id", element: <CategoryProducts /> },
-      { path: "/admin/products", element: <ProductManagement /> },
-      { path: "/cart", element: <CartPage userId={localStorage.getItem("user_id")} /> },
+      {
+        path: "/cart",
+        element: <CartPage userId={localStorage.getItem("user_id")} />,
+      },
       { path: "*", element: <RouterErrorBoundary /> },
     ],
   },
@@ -80,7 +89,6 @@ export default function RoutesRoot() {
           },
         }}
       />
-
     </>
   );
 }
