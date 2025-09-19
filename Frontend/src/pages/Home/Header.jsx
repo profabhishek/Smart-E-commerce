@@ -81,12 +81,16 @@ export default function Header() {
       );
     }
 
-    const initials = `${profile.name?.[0] ?? ""}${profile.name?.[1] ?? ""}`.toUpperCase();
+    const initials = `${profile.name?.[0] ?? ""}${
+      profile.name?.[1] ?? ""
+    }`.toUpperCase();
 
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="relative h-8 w-8 rounded-full cursor-pointer">
+          <Button
+            variant="ghost"
+            className="relative h-8 w-8 rounded-full cursor-pointer">
             <Avatar className="h-9 w-9 border-2 cursor-pointer">
               <AvatarImage src={profile.avatar} />
               <AvatarFallback>{initials}</AvatarFallback>
@@ -104,7 +108,9 @@ export default function Header() {
             <Link to="/orders">Orders</Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
+          <DropdownMenuItem
+            onClick={handleLogout}
+            className="text-red-600 cursor-pointer">
             <LogOut className="mr-2 h-4 w-4 cursor-pointer" />
             Sign out
           </DropdownMenuItem>
@@ -117,15 +123,17 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-3 text-xl font-bold tracking-tight">
+        <Link
+          to="/"
+          className="flex items-center gap-3 text-xl font-bold tracking-tight">
           <img className="h-12 w-26" src={logo} alt="logo" />
           <span
             className="text-2xl mb-1 font-extrabold bg-gradient-to-r from-orange-500 via-pink-500 to-purple-600 bg-clip-text text-transparent"
             style={{
-              textShadow: "2px 2px 4px rgba(0,0,0,0.4), -1px -1px 2px rgba(255,255,255,0.2)",
+              textShadow:
+                "2px 2px 4px rgba(0,0,0,0.4), -1px -1px 2px rgba(255,255,255,0.2)",
               lineHeight: 1.1,
-            }}
-          >
+            }}>
             Poster <br /> पटाका
           </span>
         </Link>
@@ -134,7 +142,11 @@ export default function Header() {
         <div className="hidden w-full max-w-sm md:block">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input type="search" placeholder="Search products…" className="pl-8" />
+            <Input
+              type="search"
+              placeholder="Search products…"
+              className="pl-8"
+            />
           </div>
         </div>
 
