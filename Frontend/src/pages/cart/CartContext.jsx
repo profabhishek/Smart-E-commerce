@@ -83,8 +83,7 @@ export const CartProvider = ({ children }) => {
         fetchCartCount,
         addToCart,
         removeFromCart,
-      }}
-    >
+      }}>
       {children}
     </CartContext.Provider>
   );
