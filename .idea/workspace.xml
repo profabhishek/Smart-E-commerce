@@ -5,7 +5,27 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="293884e8-0340-495b-9893-eb7d639e9ab6" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/order/controller/AdminOrderController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/order/dto/AdminOrderDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/order/model/CartLine.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/order/service/CartPort.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/order/service/CartPortAdapter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/order/service/CouponService.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Frontend/src/pages/checkout/CheckoutPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/Frontend/src/pages/checkout/CheckoutPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/auth/controller/AdminAuthController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/auth/controller/AdminAuthController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/auth/controller/AuthController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/auth/controller/AuthController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/auth/security/JwtUtils.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/auth/security/JwtUtils.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/auth/security/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/auth/security/SecurityConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/auth/service/EmailService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/auth/service/EmailService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/cart/repository/CartItemRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/cart/repository/CartItemRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/order/controller/RazorpayWebhookController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/order/controller/RazorpayWebhookController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/order/repository/OrderRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/order/repository/OrderRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/order/service/CheckoutService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/order/service/CheckoutService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/product/controller/AdminProductController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/product/controller/AdminProductController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/product/repository/ProductRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/smartcommerce/backend/product/repository/ProductRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application.properties" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application.properties" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

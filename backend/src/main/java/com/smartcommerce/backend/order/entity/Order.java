@@ -1,5 +1,6 @@
 package com.smartcommerce.backend.order.entity;
 
+import com.smartcommerce.backend.auth.entity.User;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -18,7 +19,10 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String userId;
+    @ManyToOne
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
     private String customerName;
     private String phone;
 
@@ -44,8 +48,8 @@ public class Order {
 
     // --- Getters and setters ---
     public Long getId() { return id; }
-    public String getUserId() { return userId; }
-    public void setUserId(String userId) { this.userId = userId; }
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
 
     public String getCustomerName() { return customerName; }
     public void setCustomerName(String customerName) { this.customerName = customerName; }

@@ -25,17 +25,21 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
 
   const BASE_URL = import.meta.env.VITE_API_BASE_URL;
-  const userId = localStorage.getItem("user_id") || "guest";
+  const userId = localStorage.getItem("user_id");
   const token = localStorage.getItem("user_token");
 
   // ---------- state ----------
-  const [cart, setCart] = useState(null); // { items: [], totalAmount, originalTotalAmount, totalSavings }
+  const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
 
-  // addresses
   const [addresses, setAddresses] = useState([]);
   const [selectedAddressIndex, setSelectedAddressIndex] = useState(0);
+
+  if (!userId) {
+  navigate("/login");
+  return null; // or show spinner
+}
 
   const [address, setAddress] = useState({
     fullName: "",
@@ -53,13 +57,23 @@ export default function CheckoutPage() {
   const [whatsappUpdates, setWhatsappUpdates] = useState(true);
   const [gst, setGst] = useState({ addGst: false, gstin: "", businessName: "" });
 
-  // coupons
   const [coupon, setCoupon] = useState("");
   const [couponApplying, setCouponApplying] = useState(false);
-  const [couponMeta, setCouponMeta] = useState(null); // { code, discountAmount, message }
+  const [couponMeta, setCouponMeta] = useState(null);
 
-  // optional: razorpay loader ref if you wire payments later
   const razorLoadedRef = useRef(false);
+
+  // ---------- load Razorpay script ----------
+  useEffect(() => {
+    if (razorLoadedRef.current) return;
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => {
+      razorLoadedRef.current = true;
+    };
+    document.body.appendChild(script);
+  }, []);
 
   // ---------- fetch cart ----------
   useEffect(() => {
@@ -82,7 +96,7 @@ export default function CheckoutPage() {
     })();
   }, [userId]);
 
-  // ---------- fetch user & prefill address ----------
+  // ---------- fetch user profile ----------
   useEffect(() => {
     if (!token) return;
     (async () => {
@@ -96,7 +110,6 @@ export default function CheckoutPage() {
         const addrs = Array.isArray(data.addresses) ? data.addresses : [];
         setAddresses(addrs);
 
-        // Prefill top section
         setAddress((prev) => ({
           ...prev,
           fullName: data.name || "",
@@ -109,7 +122,6 @@ export default function CheckoutPage() {
     })();
   }, [token]);
 
-  // Map backend address to UI state shape
   const mapBackendAddress = (addr) => {
     if (!addr) return {};
     return {
@@ -123,7 +135,6 @@ export default function CheckoutPage() {
     };
   };
 
-  // When user switches the saved address
   useEffect(() => {
     if (!addresses.length) return;
     setAddress((prev) => ({
@@ -131,28 +142,6 @@ export default function CheckoutPage() {
       ...mapBackendAddress(addresses[selectedAddressIndex]),
     }));
   }, [selectedAddressIndex, addresses]);
-
-  // ---------- optional: pincode -> city/state lookup ----------
-  useEffect(() => {
-    const lookup = async () => {
-      const pin = (address.pincode || "").trim();
-      if (pin.length !== 6) return;
-      try {
-        const r = await fetch(`${BASE_URL}/api/common/pincode/${pin}`);
-        if (r.ok) {
-          const data = await r.json(); // { city, state }
-          setAddress((prev) => ({
-            ...prev,
-            city: data.city || prev.city,
-            state: data.state || prev.state,
-          }));
-        }
-      } catch {
-        // ignore
-      }
-    };
-    lookup();
-  }, [address.pincode]);
 
   // ---------- totals ----------
   const pricing = useMemo(() => {
@@ -187,88 +176,193 @@ export default function CheckoutPage() {
     return null;
   };
 
-  // ---------- coupon ----------
-  const applyCoupon = async () => {
-    if (!coupon.trim()) {
-      setCouponMeta(null);
-      return;
-    }
+  // ---------- place order ----------
+  const handlePlaceOrder = async () => {
+    if (!cart || !pricing) return;
+    const err = validateForm();
+    if (err) return toast.error(err);
+
+    setPlacing(true);
+
     try {
-      setCouponApplying(true);
-      const res = await fetch(`${BASE_URL}/api/coupons/apply`, {
+      // 1. Create draft order in backend
+      const draftRes = await fetch(`${BASE_URL}/api/checkout/create-draft`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          code: coupon.trim(),
-          amount: cart?.totalAmount ?? 0,
-          items:
-            cart?.items?.map((i) => ({
-              productId: i.productId,
-              qty: i.quantity,
-            })) ?? [],
+          userId,
+          address,
+          gst,
+          couponCode: coupon,
+          paymentMethod,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setCouponMeta(null);
-        toast.error(data?.message || "Coupon not applicable");
-      } else {
-        setCouponMeta({
-          code: coupon.trim(),
-          discountAmount: Number(data.discountAmount || 0),
-          message: data?.message,
+
+      if (!draftRes.ok) throw new Error("Could not create order draft");
+      const order = await draftRes.json();
+
+      if (paymentMethod === "cod") {
+        // COD → confirm immediately
+        await fetch(`${BASE_URL}/api/checkout/confirm-cod/${order.id}`, {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-        toast.success(data?.message || "Coupon applied");
+
+        if (cart?.items?.length) {
+          for (const cartItem of cart.items) {
+            await fetch(`${BASE_URL}/api/cart/${userId}/remove?productId=${cartItem.productId}`, {
+              method: "DELETE",
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+          }
+        }
+
+        // clear frontend cart too
+        localStorage.removeItem("cart");
+        setCart(null);
+
+        toast.success("Order placed (COD)!");
+        navigate("/order-success");
+        return;
       }
+
+      // Online payment → create Razorpay order
+      const rzpRes = await fetch(`${BASE_URL}/api/checkout/create-razorpay-order/${order.id}`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!rzpRes.ok) throw new Error("Could not create Razorpay order");
+      const rzpData = await rzpRes.json();
+
+      const options = {
+        key: rzpData.key,
+        amount: rzpData.amount,
+        currency: rzpData.currency,
+        order_id: rzpData.orderId,
+        name: "SmartCommerce",
+        description: "Order Payment",
+        handler: async function (response) {
+          try {
+            const res = await fetch(`${BASE_URL}/api/checkout/confirm-payment`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                orderId: order.id,
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+              }),
+            });
+
+            if (res.ok) {
+              // 🧹 clear cart in backend
+            if (cart?.items?.length) {
+              for (const cartItem of cart.items) {
+                await fetch(`${BASE_URL}/api/cart/${userId}/remove?productId=${cartItem.productId}`, {
+                  method: "DELETE",
+                  headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+              }
+            }
+
+              // clear frontend
+              localStorage.removeItem("cart");
+              setCart(null);
+
+              toast.success("Payment successful!");
+              setTimeout(() => {
+                navigate("/order-success");
+              }, 500);
+            } else {
+              const errorText = await res.text();
+              console.error("Confirm payment failed:", errorText);
+              toast.error("Could not confirm payment. Please contact support.");
+            }
+          } catch (err) {
+            console.error("Payment confirmation error:", err);
+            toast.error("Could not confirm payment. Please try again.");
+          }
+        },
+        modal: {
+          ondismiss: async function () {
+            console.warn("Payment popup closed by user");
+
+            // optional: mark order as FAILED in backend
+            await fetch(`${BASE_URL}/api/checkout/payment-failed`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                orderId: order.id,
+                reason: "Payment window closed by user",
+              }),
+            });
+
+            toast.error("Payment was cancelled.");
+          },
+        },
+        theme: { color: "#3399cc" },
+      };
+
+      if (!window.Razorpay) {
+        alert("Razorpay SDK not loaded");
+        return;
+      }
+
+      console.log("Opening Razorpay:", options);
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
     } catch (e) {
       console.error(e);
-      toast.error("Could not apply coupon");
+      toast.error("Could not place order");
     } finally {
-      setCouponApplying(false);
+      setPlacing(false);
     }
   };
 
-  // ---------- place order (UI only; plug into your backend/Razorpay) ----------
-  const handlePlaceOrder = async () => {
-    if (!cart || !pricing) return;
-    const err = validateForm();
-    if (err) return toast.error(err);
+  // ---------- apply coupon ----------
+const applyCoupon = async () => {
+  if (!coupon.trim()) return toast.error("Please enter a coupon code");
 
-    // TODO: Wire with your existing /api/checkout/create-order + Razorpay flow.
-    // For now just simulate:
-    setPlacing(true);
-    setTimeout(() => {
-      setPlacing(false);
-      toast.success(
-        paymentMethod === "cod" ? "Order placed (COD)!" : "Payment initiated!"
-      );
-      navigate("/order-success");
-    }, 900);
-  };
+  setCouponApplying(true);
+  try {
+    const res = await fetch(`${BASE_URL}/api/coupons/apply`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        userId,
+        couponCode: coupon.trim(),
+      }),
+    });
 
-  // ---------- UI: loading ----------
-  if (loading || !cart || !pricing) {
-    return (
-      <>
-        <Header />
-        <div className="container max-w-6xl mx-auto px-4 py-10">
-          <div className="animate-pulse grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-4">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-28 bg-gray-200 rounded-xl" />
-              ))}
-            </div>
-            <div className="h-60 bg-gray-200 rounded-xl" />
-          </div>
-        </div>
-        <Footer />
-      </>
-    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Invalid coupon");
+
+    setCouponMeta(data); // store response (e.g. { discountAmount, message })
+    toast.success(data.message || "Coupon applied!");
+  } catch (err) {
+    console.error("Coupon error:", err);
+    toast.error(err.message || "Could not apply coupon");
+    setCouponMeta(null);
+  } finally {
+    setCouponApplying(false);
   }
+};
 
+
+  // ---------- rest of your JSX (unchanged) ----------
   const payCta =
     paymentMethod === "upi"
       ? "Pay via UPI"
@@ -281,6 +375,21 @@ export default function CheckoutPage() {
   return (
     <>
       <Header />
+      
+       <Button
+        className="w-full h-12 text-base font-semibold"
+        onClick={handlePlaceOrder}
+        disabled={placing}
+      >
+        {placing ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…
+          </>
+        ) : (
+          payCta
+        )}
+      </Button>
+
       <div className="container max-w-6xl mx-auto px-4 py-8">
         <div className="mb-6 flex items-center gap-3 text-gray-700">
           <ShieldCheck className="h-5 w-5" />
@@ -514,38 +623,46 @@ export default function CheckoutPage() {
                 <h2 className="text-lg font-semibold">Order Summary</h2>
               </div>
 
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Items ({cart.items.length})</span>
-                  <span>₹{pricing.subtotal}</span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span>Shipping</span>
-                  <span>{pricing.shipping === 0 ? <Badge className="bg-green-600">Free</Badge> : `₹${pricing.shipping}`}</span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span>Coupon</span>
-                  <span className={pricing.couponDiscount ? "text-green-600 font-medium" : ""}>
-                    −₹{pricing.couponDiscount}
-                  </span>
-                </div>
-
-                {gst.addGst && (
-                  <div className="text-xs text-gray-600">
-                    GST Invoice: <span className="font-medium">{gst.businessName}</span> • GSTIN {gst.gstin}
+              {!pricing ? (
+                <p className="text-sm text-gray-500">Loading order summary…</p>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Items ({cart?.items?.length || 0})</span>
+                    <span>₹{pricing?.subtotal ?? 0}</span>
                   </div>
-                )}
 
-                <Separator className="my-2" />
+                  <div className="flex justify-between">
+                    <span>Shipping</span>
+                    <span>
+                      {pricing?.shipping === 0
+                        ? <Badge className="bg-green-600">Free</Badge>
+                        : `₹${pricing?.shipping ?? 0}`}
+                    </span>
+                  </div>
 
-                <div className="flex justify-between font-semibold text-base">
-                  <span>Total</span>
-                  <span>₹{pricing.total}</span>
+                  <div className="flex justify-between">
+                    <span>Coupon</span>
+                    <span className={pricing?.couponDiscount ? "text-green-600 font-medium" : ""}>
+                      −₹{pricing?.couponDiscount ?? 0}
+                    </span>
+                  </div>
+
+                  {gst.addGst && (
+                    <div className="text-xs text-gray-600">
+                      GST Invoice: <span className="font-medium">{gst.businessName}</span> • GSTIN {gst.gstin}
+                    </div>
+                  )}
+
+                  <Separator className="my-2" />
+
+                  <div className="flex justify-between font-semibold text-base">
+                    <span>Total</span>
+                    <span>₹{pricing?.total ?? 0}</span>
+                  </div>
+                  <div className="text-xs text-gray-500">Inclusive of all taxes.</div>
                 </div>
-                <div className="text-xs text-gray-500">Inclusive of all taxes.</div>
-              </div>
+              )}
 
               {/* coupon */}
               <div className="mt-4 flex gap-2">
@@ -574,7 +691,7 @@ export default function CheckoutPage() {
             <Button
               className="w-full h-12 text-base font-semibold"
               onClick={handlePlaceOrder}
-              disabled={placing}
+              disabled={placing || !pricing}
             >
               {placing ? (
                 <>
@@ -596,6 +713,7 @@ export default function CheckoutPage() {
               </ul>
             </div>
           </aside>
+
         </div>
 
         {/* Back to cart */}

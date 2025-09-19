@@ -26,9 +26,9 @@ public class CheckoutController {
         return ResponseEntity.ok(o);
     }
 
-    @PostMapping("/create-razorpay-order")
-    public ResponseEntity<RazorOrderResponse> createRazorpayOrder(@RequestParam Long orderId) throws Exception {
-        Order o = checkout.getOrderById(orderId); // if you kept OrderService.getOrderById, otherwise add simple find
+    @PostMapping("/create-razorpay-order/{orderId}")
+    public ResponseEntity<RazorOrderResponse> createRazorpayOrder(@PathVariable Long orderId) throws Exception {
+        Order o = checkout.getOrderById(orderId);
         RazorOrderResponse res = payment.createRazorpayOrder(o);
         return ResponseEntity.ok(res);
     }

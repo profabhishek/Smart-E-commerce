@@ -100,7 +100,7 @@ public class PaymentService {
         Payment payment = paymentRepo.findByRazorpayOrderId(rzpOrderId);
         if (payment == null) throw new RuntimeException("Payment not found for order");
 
-        // Idempotency check
+        // Idempotency
         if (payment.getStatus() == PaymentStatus.CAPTURED) return;
 
         // Update payment
@@ -109,6 +109,11 @@ public class PaymentService {
         payment.setStatus(PaymentStatus.CAPTURED);
         payment.setUpdatedAt(Instant.now());
         paymentRepo.save(payment);
+
+        // ✅ Update order
+        order.setStatus(Order.OrderStatus.PAID);
+        order.setUpdatedAt(Instant.now());
+        orderRepo.save(order);
     }
 
     public boolean verifyWebhook(String body, String headerSig) {

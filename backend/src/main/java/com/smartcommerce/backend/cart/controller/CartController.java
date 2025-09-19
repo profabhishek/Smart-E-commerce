@@ -39,4 +39,10 @@ public class CartController {
         cartService.removeFromCart(userId, productId);
     }
 
+    @DeleteMapping("/{userId}/clear")
+    public void clearCart(@PathVariable Long userId) {
+        cartService.clearCart(userId);
+    }
+
+
 }

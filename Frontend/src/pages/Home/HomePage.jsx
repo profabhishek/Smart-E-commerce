@@ -23,6 +23,7 @@ export default function HomePage() {
     if (!res.ok) throw new Error("Failed to fetch categories");
     return res.json();
   };
+  
   const fetchProducts = async () => {
     const res = await fetch(`${VITE_API_BASE_URL}/api/products`);
     if (!res.ok) throw new Error("Failed to fetch products");
