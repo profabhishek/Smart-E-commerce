@@ -43,7 +43,7 @@
                                     "/api/admin/auth/reset-password",
                                     "/api/admin/auth/logout"
                             ).permitAll() // Admin login + reset
-                            .requestMatchers("/api/cart/**").permitAll()
+                            .requestMatchers("/api/cart/**").hasAnyRole("USER", "ADMIN")
                             .requestMatchers("/api/products/**").permitAll() // 👈 public product browsing
                             .requestMatchers("/api/categories/**").permitAll() // 👈 if you want public category list
 

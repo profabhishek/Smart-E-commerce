@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Header from "../Home/Header";
 import Footer from "../Home/Footer";
 import "../../App.css";
@@ -22,6 +22,9 @@ export default function CartPage() {
   // ✅ context methods
   const { fetchCartCount, addToCart, removeFromCart } = useCart();
 
+  // 👇 added this ref (prevents duplicate toast)
+  const hasShownToast = useRef(false);
+
   // Fetch cart details
   const fetchCart = async () => {
     try {
@@ -40,15 +43,18 @@ export default function CartPage() {
     }
   };
 
+  // ✅ updated effect
   useEffect(() => {
     const token = localStorage.getItem("user_token");
-    if (!token) {
+
+    if (!token && !hasShownToast.current) {
+      hasShownToast.current = true; // 👈 stops second toast
       toast.error("Please login to view your cart");
-      navigate("/email");   // login screen
-    } else {
+      navigate("/email");
+    } else if (token) {
       fetchCart();
     }
-  }, [userId, token]);
+  }, [userId]);
 
   // Quantity update (optimistic)
 const updateQuantity = async (productId, newQuantity) => {

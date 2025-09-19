@@ -333,6 +333,7 @@ export default function CheckoutPage() {
                     value={address.fullName}
                     onChange={(e) => setAddress({ ...address, fullName: e.target.value })}
                     placeholder="e.g. Abhishek Jha"
+                    className="mt-2"
                   />
                 </div>
                 <div>
@@ -344,6 +345,7 @@ export default function CheckoutPage() {
                     }
                     maxLength={10}
                     placeholder="98xxxxxxxx"
+                    className="mt-2"
                   />
                 </div>
                 <div>
@@ -355,13 +357,16 @@ export default function CheckoutPage() {
                     }
                     maxLength={6}
                     placeholder="110059"
+                    className="mt-2"
                   />
                 </div>
                 <div>
-                  <Label>Address Type</Label>
+                  <Label className="mb-2">Address Type</Label>
                   <Select value={address.type} onValueChange={(v) => setAddress({ ...address, type: v })}>
-                    <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent side="bottom" sideOffset={8}>
                       <SelectItem value="home">Home</SelectItem>
                       <SelectItem value="work">Work</SelectItem>
                       <SelectItem value="other">Other</SelectItem>
@@ -374,6 +379,7 @@ export default function CheckoutPage() {
                     value={address.addressLine1}
                     onChange={(e) => setAddress({ ...address, addressLine1: e.target.value })}
                     placeholder="House/Flat, Street, Area"
+                    className="mt-2"
                   />
                 </div>
                 <div className="sm:col-span-2">
@@ -382,6 +388,7 @@ export default function CheckoutPage() {
                     value={address.addressLine2}
                     onChange={(e) => setAddress({ ...address, addressLine2: e.target.value })}
                     placeholder="Apartment / Landmark"
+                    className="mt-2"
                   />
                 </div>
                 <div>
@@ -390,6 +397,7 @@ export default function CheckoutPage() {
                     value={address.city}
                     onChange={(e) => setAddress({ ...address, city: e.target.value })}
                     placeholder="New Delhi"
+                    className="mt-2"
                   />
                 </div>
                 <div>
@@ -398,6 +406,7 @@ export default function CheckoutPage() {
                     value={address.state}
                     onChange={(e) => setAddress({ ...address, state: e.target.value })}
                     placeholder="Delhi"
+                    className="mt-2"
                   />
                 </div>
               </div>
@@ -452,13 +461,6 @@ export default function CheckoutPage() {
                   </div>
                 </label>
 
-                <label className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer">
-                  <RadioGroupItem value="cod" />
-                  <div>
-                    <div className="font-medium">Cash on Delivery</div>
-                    <div className="text-sm text-gray-500">+₹30 COD fee</div>
-                  </div>
-                </label>
               </RadioGroup>
 
               <Separator className="my-4" />
@@ -522,13 +524,6 @@ export default function CheckoutPage() {
                   <span>Shipping</span>
                   <span>{pricing.shipping === 0 ? <Badge className="bg-green-600">Free</Badge> : `₹${pricing.shipping}`}</span>
                 </div>
-
-                {paymentMethod === "cod" && (
-                  <div className="flex justify-between">
-                    <span>COD Fee</span>
-                    <span>₹{pricing.codFee}</span>
-                  </div>
-                )}
 
                 <div className="flex justify-between">
                   <span>Coupon</span>
