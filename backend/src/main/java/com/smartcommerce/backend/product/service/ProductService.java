@@ -20,6 +20,7 @@ public class ProductService {
     }
 
     // CREATE
+// CREATE
     public Product createProduct(Product product, Long categoryId) {
         Category category;
 
@@ -36,6 +37,11 @@ public class ProductService {
         // ensure SKU is unique
         if (product.getSku() == null || productRepo.findBySku(product.getSku()).isPresent()) {
             throw new RuntimeException("SKU must be unique and not null");
+        }
+
+        // 🔑 Attach product to each photo before saving
+        if (product.getPhotos() != null) {
+            product.getPhotos().forEach(photo -> photo.setProduct(product));
         }
 
         return productRepo.save(product);
@@ -68,14 +74,21 @@ public class ProductService {
     }
 
     // UPDATE
+// UPDATE
     public Product updateProduct(Long id, Product updatedProduct, Long categoryId) {
         Product existing = productRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        // Update fields (only if non-null, prevents overwriting with nulls)
         if (updatedProduct.getName() != null) existing.setName(updatedProduct.getName());
         if (updatedProduct.getDescription() != null) existing.setDescription(updatedProduct.getDescription());
-        if (updatedProduct.getPhotos() != null) existing.setPhotos(updatedProduct.getPhotos());
+
+        if (updatedProduct.getPhotos() != null) {
+            // clear old photos and replace with new ones
+            existing.getPhotos().clear();
+            updatedProduct.getPhotos().forEach(photo -> photo.setProduct(existing));
+            existing.getPhotos().addAll(updatedProduct.getPhotos());
+        }
+
         if (updatedProduct.getPrice() != null) existing.setPrice(updatedProduct.getPrice());
         if (updatedProduct.getDiscountPrice() != null) existing.setDiscountPrice(updatedProduct.getDiscountPrice());
         if (updatedProduct.getRating() != null) existing.setRating(updatedProduct.getRating());
@@ -86,6 +99,7 @@ public class ProductService {
         if (updatedProduct.getHeight() != null) existing.setHeight(updatedProduct.getHeight());
         if (updatedProduct.getWeight() != null) existing.setWeight(updatedProduct.getWeight());
         if (updatedProduct.getTags() != null) existing.setTags(updatedProduct.getTags());
+
         if (updatedProduct.getSku() != null && !updatedProduct.getSku().equals(existing.getSku())) {
             if (productRepo.findBySku(updatedProduct.getSku()).isPresent()) {
                 throw new RuntimeException("SKU already exists");

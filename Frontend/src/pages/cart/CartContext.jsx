@@ -30,24 +30,25 @@ export const CartProvider = ({ children }) => {
 
   // 🔹 Optimistic Add to Cart
   const addToCart = async (productId, quantity = 1) => {
-    if (!userId || !token) return;
+    const userId = localStorage.getItem("user_id");
+    const token = localStorage.getItem("user_token");
 
-    // ⚡ Optimistically increment
+    if (!userId || !token) {
+      toast.error("Please login to add items to cart");
+      navigate("/email");   // 👈 redirect to login page
+      return;
+    }
+
     setCartCount((prev) => prev + quantity);
 
     try {
-      await fetch(
-        `${BASE_URL}/api/cart/${userId}/add?productId=${productId}&quantity=${quantity}`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      // Sync after backend confirms
+      await fetch(`${BASE_URL}/api/cart/${userId}/add?productId=${productId}&quantity=${quantity}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
       fetchCartCount();
     } catch (err) {
       console.error("Add to cart failed:", err);
-      // Rollback on failure
       setCartCount((prev) => Math.max(0, prev - quantity));
     }
   };

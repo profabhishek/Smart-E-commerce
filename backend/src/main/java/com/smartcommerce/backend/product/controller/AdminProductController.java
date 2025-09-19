@@ -62,6 +62,7 @@ public class AdminProductController {
     }
 
     // 📸 Upload product photos
+// 📸 Upload product photos
     @PostMapping("/{productId}/photos")
     public ResponseEntity<?> uploadProductPhotos(
             @PathVariable Long productId,
@@ -88,8 +89,8 @@ public class AdminProductController {
                 Files.createDirectories(path.getParent());
                 Files.write(path, file.getBytes());
 
-                // build public URL
-                String url = "/uploads/productPhotos/" + filename;
+                // build public URL (with server host)
+                String url = "http://localhost:8082/uploads/productPhotos/" + filename;
 
                 // save into DB
                 ProductPhoto photo = new ProductPhoto();

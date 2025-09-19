@@ -4,11 +4,17 @@ import Footer from "../Home/Footer";
 import "../../App.css";
 import { Trash2 } from "lucide-react";
 import { useCart } from "./CartContext"; // 👈 context
+import { useNavigate } from "react-router-dom";
+import { getCartOwnerId } from "../../utils/auth";
+import toast from "react-hot-toast";
 
-export default function CartPage({ userId }) {
+
+export default function CartPage() {
+  const navigate = useNavigate();
   const [cartSummary, setCartSummary] = useState(null);
   const [optimisticItems, setOptimisticItems] = useState({});
   const [isUpdating, setIsUpdating] = useState(false);
+  const userId = getCartOwnerId();
 
   const BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const token = localStorage.getItem("user_token");
@@ -35,38 +41,41 @@ export default function CartPage({ userId }) {
   };
 
   useEffect(() => {
-    fetchCart();
-  }, [userId]);
-
-  // Quantity update (optimistic)
-  const updateQuantity = async (productId, newQuantity, oldQuantity) => {
-    if (!cartSummary) return;
-
-    setOptimisticItems((prev) => ({
-      ...prev,
-      [productId]: newQuantity,
-    }));
-    setIsUpdating(true);
-
-    // 🔹 Update context immediately
-    const diff = newQuantity - oldQuantity;
-    if (diff > 0) addToCart(productId, diff);
-    if (diff < 0) removeFromCart(productId); // naive: one by one; can be extended
-
-    try {
-      await fetch(
-        `${BASE_URL}/api/cart/${userId}/update?productId=${productId}&quantity=${newQuantity}`,
-        {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      fetchCart();
-    } catch (err) {
-      console.error("Failed to update cart:", err);
+    const token = localStorage.getItem("user_token");
+    if (!token) {
+      toast.error("Please login to view your cart");
+      navigate("/email");   // login screen
+    } else {
       fetchCart();
     }
-  };
+  }, [userId, token]);
+
+  // Quantity update (optimistic)
+const updateQuantity = async (productId, newQuantity) => {
+  if (!cartSummary) return;
+
+  // show change instantly
+  setOptimisticItems((prev) => ({
+    ...prev,
+    [productId]: newQuantity,
+  }));
+  setIsUpdating(true);
+
+  try {
+    await fetch(
+      `${BASE_URL}/api/cart/${userId}/update?productId=${productId}&quantity=${newQuantity}`,
+      {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    fetchCart(); // reload cart from backend
+  } catch (err) {
+    console.error("Failed to update cart:", err);
+    fetchCart();
+  }
+};
+
 
   const removeItem = async (productId) => {
     setIsUpdating(true);
@@ -176,15 +185,20 @@ export default function CartPage({ userId }) {
 
                     <div className="flex items-center gap-2">
                       <button
-                        disabled={isUpdating || optimisticQty <= 1}
+                        disabled={isUpdating}
                         className={`px-2 py-1 rounded transition 
                           ${isUpdating ? "bg-gray-300 cursor-not-allowed" : "bg-gray-200 hover:bg-gray-300 cursor-pointer"}`}
-                        onClick={() =>
-                          updateQuantity(item.productId, optimisticQty - 1, item.quantity)
-                        }
+                        onClick={() => {
+                          if (optimisticQty <= 1) {
+                            removeItem(item.productId); // ✅ remove item only when quantity = 1
+                          } else {
+                            updateQuantity(item.productId, optimisticQty - 1); // ✅ reduce by 1
+                          }
+                        }}
                       >
                         −
                       </button>
+
                       <span className="w-8 text-center font-semibold">{optimisticQty}</span>
                       <button
                         disabled={isUpdating}
@@ -252,13 +266,17 @@ export default function CartPage({ userId }) {
                   </>
                 )}
               </div>
+
+              {/* CheckOut Page */}
               <button
                 disabled={isUpdating}
+                onClick={() => navigate("/checkout")}
                 className={`mt-6 w-full py-3 font-bold rounded-lg shadow transition
                   ${isUpdating ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700 text-white cursor-pointer"}`}
               >
                 Proceed to Checkout
               </button>
+
             </div>
           </div>
         )}
