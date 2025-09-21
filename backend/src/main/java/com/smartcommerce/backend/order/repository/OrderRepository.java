@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
@@ -31,4 +32,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                              @Param("end") Instant end,
                              @Param("userId") Long userId,
                              Pageable pageable);
+
+    // ✅ Ownership-enforced lookup
+    Optional<Order> findByIdAndUser_Id(Long id, Long userId);
 }

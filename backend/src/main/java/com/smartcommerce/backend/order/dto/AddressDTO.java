@@ -1,12 +1,15 @@
 package com.smartcommerce.backend.order.dto;
 
+import lombok.Data;
+
+@Data
 public class AddressDTO {
-    public String fullName;
-    public String phone;
-    public String pincode;
-    public String addressLine1;
-    public String addressLine2;
-    public String city;
-    public String state;
-    public String type; // home/work/other
+    private String fullName;
+    private String phone;
+    private String pincode;
+    private String addressLine1;  // House/Flat, Street, Area
+    private String addressLine2;  // Apartment / Landmark
+    private String city;
+    private String state;
+    private String type; // home/work/other
 }

@@ -27,7 +27,7 @@ public class CartItemDTO {
                 .setScale(2, RoundingMode.HALF_UP);
 
         this.productPhoto = (item.getProduct().getPhotos() != null && !item.getProduct().getPhotos().isEmpty())
-                ? item.getProduct().getPhotos().get(0).getPhoto_url()
+                ? item.getProduct().getPhotos().get(0).getPhotoUrl()
                 : null;
 
         BigDecimal discountPrice = item.getProduct().getDiscountPrice();

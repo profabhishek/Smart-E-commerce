@@ -21,6 +21,9 @@ public class OrderItem {
     private Long price;    // in paise
     private Integer quantity;
 
+    @Column(name = "product_photo", length = 1024, nullable = true)
+    private String productPhoto;
+
     // --- Getters and setters ---
     public Long getId() { return id; }
 
@@ -38,4 +41,7 @@ public class OrderItem {
 
     public Integer getQuantity() { return quantity; }
     public void setQuantity(Integer quantity) { this.quantity = quantity; }
+
+    public String getProductPhoto() { return productPhoto; }
+    public void setProductPhoto(String productPhoto) { this.productPhoto = productPhoto; }
 }

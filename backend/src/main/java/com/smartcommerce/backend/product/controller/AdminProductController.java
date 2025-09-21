@@ -99,7 +99,7 @@ public class AdminProductController {
                 // save into DB
                 ProductPhoto photo = new ProductPhoto();
                 photo.setProduct(product);
-                photo.setPhoto_url(url);
+                photo.setPhotoUrl(url);
                 productPhotoRepository.save(photo);
 
                 urls.add(url);
@@ -134,7 +134,7 @@ public class AdminProductController {
 
         // delete file from server
         try {
-            Path path = Paths.get("uploads", photo.getPhoto_url().replace("/uploads/", ""));
+            Path path = Paths.get("uploads", photo.getPhotoUrl().replace("/uploads/", ""));
             Files.deleteIfExists(path);
         } catch (Exception e) {
             e.printStackTrace(); // log only

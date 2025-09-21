@@ -44,12 +44,13 @@ export default function CheckoutPage() {
   const [address, setAddress] = useState({
     fullName: "",
     phone: "",
-    pincode: "",
-    addressLine1: "",
-    addressLine2: "",
+    houseNo: "",
+    area: "",
+    landmark: "",
     city: "",
     state: "",
-    landmark: "",
+    country: "India",
+    pinCode: "",
     type: "home",
   });
 
@@ -96,7 +97,22 @@ export default function CheckoutPage() {
     })();
   }, [userId]);
 
-  // ---------- fetch user profile ----------
+  // ---------- fetch user profile --------
+
+  const mapBackendAddress = (addr) => {
+    if (!addr) return {};
+    return {
+      houseNo: addr.houseNo || "",
+      area: addr.area || "",
+      landmark: addr.landmark || "",
+      city: addr.city || "",
+      state: addr.state || "",
+      country: addr.country || "India",
+      pinCode: addr.pinCode || "",
+      type: "home",
+    };
+  };
+
   useEffect(() => {
     if (!token) return;
     (async () => {
@@ -122,19 +138,6 @@ export default function CheckoutPage() {
     })();
   }, [token]);
 
-  const mapBackendAddress = (addr) => {
-    if (!addr) return {};
-    return {
-      pincode: addr.pinCode || "",
-      addressLine1: [addr.houseNo, addr.area].filter(Boolean).join(", "),
-      addressLine2: addr.landmark || "",
-      city: addr.city || "",
-      state: addr.state || "",
-      landmark: addr.landmark || "",
-      type: "home",
-    };
-  };
-
   useEffect(() => {
     if (!addresses.length) return;
     setAddress((prev) => ({
@@ -159,22 +162,36 @@ export default function CheckoutPage() {
 
   // ---------- validation ----------
   const isValidPhone = (p) => /^[6-9]\d{9}$/.test(p);
-  const isValidPincode = (p) => /^\d{6}$/.test(p);
-  const isValidGstin = (g) =>
-    /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test((g || "").trim());
+  const isValidPin = (p) => /^\d{6}$/.test(p);
 
   const validateForm = () => {
     if (!address.fullName.trim()) return "Please enter full name.";
     if (!isValidPhone(address.phone)) return "Enter a valid 10-digit mobile number.";
-    if (!isValidPincode(address.pincode)) return "Enter a valid 6-digit pincode.";
-    if (!address.addressLine1.trim()) return "Address line is required.";
-    if (!address.city.trim() || !address.state.trim()) return "City and State are required.";
+    if (!isValidPin(address.pinCode)) return "Enter a valid 6-digit pin code.";
+    if (!address.houseNo.trim() && !address.area.trim())
+      return "Please enter House No. or Area.";
+    if (!address.city.trim() || !address.state.trim())
+      return "City and State are required.";
     if (gst.addGst) {
       if (!isValidGstin(gst.gstin)) return "Enter a valid GSTIN.";
-      if (!gst.businessName.trim()) return "Business name is required for GST invoice.";
+      if (!gst.businessName.trim())
+        return "Business name is required for GST invoice.";
     }
     return null;
   };
+
+  async function clearCartAfterPayment() {
+  if (cart?.items?.length) {
+    for (const cartItem of cart.items) {
+      await fetch(`${BASE_URL}/api/cart/${userId}/remove?productId=${cartItem.productId}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    }
+  }
+  localStorage.removeItem("cart");
+  setCart(null);
+}
 
   // ---------- place order ----------
   const handlePlaceOrder = async () => {
@@ -193,12 +210,22 @@ export default function CheckoutPage() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          userId,
-          address,
-          gst,
-          couponCode: coupon,
-          paymentMethod,
-        }),
+        customerName: address.fullName,
+        phone: address.phone,
+        address: {
+          houseNo: address.houseNo,
+          area: address.area,
+          landmark: address.landmark,
+          city: address.city,
+          state: address.state,
+          country: address.country,
+          pinCode: address.pinCode,
+          type: address.type,
+        },
+        gst,
+        couponCode: coupon,
+        paymentMethod,
+      }),
       });
 
       if (!draftRes.ok) throw new Error("Could not create order draft");
@@ -225,7 +252,7 @@ export default function CheckoutPage() {
         setCart(null);
 
         toast.success("Order placed (COD)!");
-        navigate("/order-success");
+        navigate("/order-details");
         return;
       }
 
@@ -244,8 +271,22 @@ export default function CheckoutPage() {
         order_id: rzpData.orderId,
         name: "SmartCommerce",
         description: "Order Payment",
+        method: {
+          upi: paymentMethod === "upi" ? "1" : "0",
+          card: paymentMethod === "card" ? "1" : "0",
+          netbanking: paymentMethod === "netbanking" ? "1" : "0",
+        },
         handler: async function (response) {
+          console.log("🔔 Razorpay returned response:", response);
+
           try {
+            console.log("➡️ Sending confirm-payment payload:", {
+              orderId: order.id,
+              razorpayOrderId: response?.razorpay_order_id,
+              razorpayPaymentId: response?.razorpay_payment_id,
+              razorpaySignature: response?.razorpay_signature,
+            });
+
             const res = await fetch(`${BASE_URL}/api/checkout/confirm-payment`, {
               method: "POST",
               headers: {
@@ -254,38 +295,71 @@ export default function CheckoutPage() {
               },
               body: JSON.stringify({
                 orderId: order.id,
-                razorpayOrderId: response.razorpay_order_id,
-                razorpayPaymentId: response.razorpay_payment_id,
-                razorpaySignature: response.razorpay_signature,
+                razorpayOrderId: response?.razorpay_order_id,
+                razorpayPaymentId: response?.razorpay_payment_id,
+                razorpaySignature: response?.razorpay_signature,
               }),
             });
 
             if (res.ok) {
-              // 🧹 clear cart in backend
-            if (cart?.items?.length) {
-              for (const cartItem of cart.items) {
-                await fetch(`${BASE_URL}/api/cart/${userId}/remove?productId=${cartItem.productId}`, {
-                  method: "DELETE",
-                  headers: token ? { Authorization: `Bearer ${token}` } : {},
-                });
+              console.log("✅ Confirm-payment success");
+              await clearCartAfterPayment();
+              toast.success("Payment successful!");
+              setTimeout(() => {
+                navigate(`/order-details?orderId=${order.id}`, { state: { orderId: order.id } });
+              }, 500);
+              return;
+            }
+
+            // Backend returned error (500, 400, etc.)
+            const errorText = await res.text();
+            console.warn("⚠️ Confirm-payment failed:", errorText);
+
+            // 🔁 fallback: poll order status up to 3 times
+            for (let i = 0; i < 3; i++) {
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+              const poll = await fetch(`${BASE_URL}/api/orders/${order.id}/status`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+              });
+
+              if (poll.ok) {
+                const status = await poll.text(); // "PAID", "FAILED", etc.
+                console.log(`🔎 Poll attempt ${i + 1}:`, status);
+                if (status === "PAID") {
+                  await clearCartAfterPayment();
+                  toast.success("Payment successful!");
+                  setTimeout(() => navigate("/order-details"), 500);
+                  return;
+                } else if (status === "FAILED") {
+                  break; // stop retrying if backend says failed
+                }
               }
             }
 
-              // clear frontend
-              localStorage.removeItem("cart");
-              setCart(null);
-
-              toast.success("Payment successful!");
-              setTimeout(() => {
-                navigate("/order-success");
-              }, 500);
-            } else {
-              const errorText = await res.text();
-              console.error("Confirm payment failed:", errorText);
-              toast.error("Could not confirm payment. Please contact support.");
-            }
+            toast.error("Payment could not be confirmed. Please contact support.");
           } catch (err) {
-            console.error("Payment confirmation error:", err);
+            console.error("💥 Payment confirmation error:", err);
+
+            // 🛑 Last-chance fallback
+            try {
+              const poll = await fetch(`${BASE_URL}/api/orders/${order.id}/status`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+              });
+
+              if (poll.ok) {
+                const status = await poll.text();
+                console.log("Last-chance poll result:", status);
+                if (status === "PAID") {
+                  await clearCartAfterPayment();
+                  toast.success("Payment successful!");
+                  setTimeout(() => navigate("/order-details"), 500);
+                  return;
+                }
+              }
+            } catch (pollErr) {
+              console.error("Fallback poll failed:", pollErr);
+            }
+
             toast.error("Could not confirm payment. Please try again.");
           }
         },
@@ -342,7 +416,6 @@ const applyCoupon = async () => {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
-        userId,
         couponCode: coupon.trim(),
       }),
     });
@@ -375,21 +448,6 @@ const applyCoupon = async () => {
   return (
     <>
       <Header />
-      
-       <Button
-        className="w-full h-12 text-base font-semibold"
-        onClick={handlePlaceOrder}
-        disabled={placing}
-      >
-        {placing ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…
-          </>
-        ) : (
-          payCta
-        )}
-      </Button>
-
       <div className="container max-w-6xl mx-auto px-4 py-8">
         <div className="mb-6 flex items-center gap-3 text-gray-700">
           <ShieldCheck className="h-5 w-5" />
@@ -449,27 +507,83 @@ const applyCoupon = async () => {
                   <Label>Phone (10-digit)</Label>
                   <Input
                     value={address.phone}
-                    onChange={(e) =>
-                      setAddress({ ...address, phone: e.target.value.replace(/\D/g, "") })
-                    }
+                    onChange={(e) => setAddress({ ...address, phone: e.target.value.replace(/\D/g, "") })}
                     maxLength={10}
                     placeholder="98xxxxxxxx"
                     className="mt-2"
                   />
                 </div>
+
                 <div>
-                  <Label>Pincode</Label>
+                  <Label>House No.</Label>
                   <Input
-                    value={address.pincode}
-                    onChange={(e) =>
-                      setAddress({ ...address, pincode: e.target.value.replace(/\D/g, "") })
-                    }
-                    maxLength={6}
-                    placeholder="110059"
+                    value={address.houseNo}
+                    onChange={(e) => setAddress({ ...address, houseNo: e.target.value })}
+                    placeholder="123"
                     className="mt-2"
                   />
                 </div>
                 <div>
+                  <Label>Area</Label>
+                  <Input
+                    value={address.area}
+                    onChange={(e) => setAddress({ ...address, area: e.target.value })}
+                    placeholder="Street / Colony"
+                    className="mt-2"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <Label>Landmark</Label>
+                  <Input
+                    value={address.landmark}
+                    onChange={(e) => setAddress({ ...address, landmark: e.target.value })}
+                    placeholder="Near park, mall..."
+                    className="mt-2"
+                  />
+                </div>
+
+                <div>
+                  <Label>City</Label>
+                  <Input
+                    value={address.city}
+                    onChange={(e) => setAddress({ ...address, city: e.target.value })}
+                    placeholder="City"
+                    className="mt-2"
+                  />
+                </div>
+                <div>
+                  <Label>Pin Code</Label>
+                  <Input
+                    value={address.pinCode}
+                    onChange={(e) => setAddress({ ...address, pinCode: e.target.value.replace(/\D/g, "") })}
+                    maxLength={6}
+                    placeholder="110001"
+                    className="mt-2"
+                  />
+                </div>
+
+                <div>
+                  <Label>Country</Label>
+                  <Input
+                    value={address.country}
+                    onChange={(e) => setAddress({ ...address, country: e.target.value })}
+                    placeholder="India"
+                    className="mt-2"
+                  />
+                </div>
+                <div>
+                  <Label className="mb-2">State</Label>
+                  <Input
+                    value={address.state}
+                    onChange={(e) => setAddress({ ...address, state: e.target.value })}
+                    placeholder="Delhi"
+                    className="mt-2"
+                  />
+                  {/* If you prefer a dropdown, swap Input with <Select> and options */}
+                </div>
+
+                <div className="sm:col-span-2">
                   <Label className="mb-2">Address Type</Label>
                   <Select value={address.type} onValueChange={(v) => setAddress({ ...address, type: v })}>
                     <SelectTrigger>
@@ -482,44 +596,7 @@ const applyCoupon = async () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="sm:col-span-2">
-                  <Label>Address Line</Label>
-                  <Input
-                    value={address.addressLine1}
-                    onChange={(e) => setAddress({ ...address, addressLine1: e.target.value })}
-                    placeholder="House/Flat, Street, Area"
-                    className="mt-2"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Address Line 2 (optional)</Label>
-                  <Input
-                    value={address.addressLine2}
-                    onChange={(e) => setAddress({ ...address, addressLine2: e.target.value })}
-                    placeholder="Apartment / Landmark"
-                    className="mt-2"
-                  />
-                </div>
-                <div>
-                  <Label>City</Label>
-                  <Input
-                    value={address.city}
-                    onChange={(e) => setAddress({ ...address, city: e.target.value })}
-                    placeholder="New Delhi"
-                    className="mt-2"
-                  />
-                </div>
-                <div>
-                  <Label>State</Label>
-                  <Input
-                    value={address.state}
-                    onChange={(e) => setAddress({ ...address, state: e.target.value })}
-                    placeholder="Delhi"
-                    className="mt-2"
-                  />
-                </div>
               </div>
-
               <div className="mt-3 flex items-center gap-2">
                 <input
                   id="whatsapp"

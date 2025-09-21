@@ -1,333 +1,458 @@
-import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import Header from "../Home/Header";
 import Footer from "../Home/Footer";
-import RatingStars from "../../components/RatingStars";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useCart } from "../cart/CartContext"; // optional, refresh if available
+import toast from "react-hot-toast";
+import {
+  Star,
+  ShieldCheck,
+  Truck,
+  RefreshCw,
+  Heart,
+  Minus,
+  Plus,
+  CheckCircle2,
+  ChevronRight,
+} from "lucide-react";
+
+// ---------- helpers: quantity persistence (per user + product) ----------
+const qtyKey = (uid, pid) => `qp:${uid || "guest"}:${pid}`;
+const getSavedQty = (uid, pid) => {
+  try {
+    const s = localStorage.getItem(qtyKey(uid, pid));
+    const n = Number(s);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+};
+const setSavedQty = (uid, pid, q) => {
+  try {
+    localStorage.setItem(qtyKey(uid, pid), String(q));
+  } catch {}
+};
+
+// ---------- tiny utils ----------
+const currency = (n) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n ?? 0);
+const clamp = (v, min, max) => Math.max(min, Math.min(v, max));
+const fallbackImg =
+  "https://images.unsplash.com/photo-1611162618071-b39a2ec2cfb6?q=80&w=1200&auto=format&fit=crop"; // neutral placeholder
 
 export default function ProductPage() {
   const { id } = useParams();
-  const [product, setProduct] = useState(null);
+  const navigate = useNavigate();
+
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8082";
+  const token = localStorage.getItem("user_token");
+  const userId = localStorage.getItem("user_id") || "2"; // demo fallback matches sample payload
+
+  // ✅ use the same methods as CartPage
+  const { fetchCartCount } = useCart();
+
   const [loading, setLoading] = useState(true);
-  const [selectedImage, setSelectedImage] = useState(0);
+  const [product, setProduct] = useState(null);
+  const [featured, setFeatured] = useState([]);
+  const [error, setError] = useState("");
+  const [selected, setSelected] = useState(0);
   const [quantity, setQuantity] = useState(1);
-  const [relatedProducts, setRelatedProducts] = useState([]);
+  const thumbStripRef = useRef(null);
 
-  const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
+  // -------- fetch product --------
   useEffect(() => {
-    const fetchProduct = async () => {
+    let cancelled = false;
+    async function run() {
+      setLoading(true);
+      setError("");
       try {
-        setLoading(true);
-        const res = await fetch(`${VITE_API_BASE_URL}/api/products/${id}`);
-        if (!res.ok) throw new Error("Failed to fetch product");
+        const res = await fetch(`${API_BASE}/api/products/${id}`);
+        if (!res.ok) throw new Error(`Failed to load product (${res.status})`);
         const data = await res.json();
+        if (cancelled) return;
         setProduct(data);
-
-        // Fetch related products from same category
-        if (data.category) {
-          const relatedRes = await fetch(
-            `${VITE_API_BASE_URL}/api/products?categoryId=${data.category.id}&limit=4`
-          );
-          const relatedData = await relatedRes.json();
-          setRelatedProducts(relatedData.filter((p) => p.id !== data.id));
+        // restore qty
+        const saved = getSavedQty(userId, data.id);
+        setQuantity(saved || 1);
+        // fetch featured by category
+        if (data?.category?.id) {
+          const fRes = await fetch(`${API_BASE}/api/products?categoryId=${data.category.id}`);
+          if (fRes.ok) {
+            const list = await fRes.json();
+            const filtered = (list || []).filter((p) => p.id !== data.id).slice(0, 8);
+            setFeatured(filtered);
+          }
         }
-      } catch (err) {
-        console.error("Error fetching product:", err);
+      } catch (e) {
+        setError(e.message || "Could not load product");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
+    }
+    run();
+    return () => {
+      cancelled = true;
     };
-    fetchProduct();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const handleQuantityChange = (change) => {
-    setQuantity((prev) => Math.max(1, prev + change));
+  // keep quantity persisted
+  useEffect(() => {
+    if (product?.id && quantity > 0) setSavedQty(userId, product.id, quantity);
+  }, [quantity, product?.id, userId]);
+
+  const inStock = !!product?.inStock && (product?.stock ?? 0) > 0;
+  const photos = useMemo(() => {
+    if (!product?.photos?.length) return [fallbackImg];
+    return product.photos.map((p) => p?.url || fallbackImg);
+  }, [product]);
+
+  const discountPct = useMemo(() => {
+    if (!product?.price || !product?.discountPrice) return 0;
+    const d = 100 - Math.round((product.discountPrice / product.price) * 100);
+    return d > 0 ? d : 0;
+  }, [product?.price, product?.discountPrice]);
+
+  // -------- cart operations --------
+  const callWithAuth = (url, options = {}) =>
+    fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+    });
+
+  const addToCart = async () => {
+    if (!product?.id) return;
+    if (!inStock) return toast.error("Out of stock");
+    const qty = clamp(quantity, 1, product.stock || 1);
+
+    try {
+      const url = `${API_BASE}/api/cart/${encodeURIComponent(userId)}/add?productId=${product.id}&quantity=${qty}`;
+      const res = await callWithAuth(url, { method: "POST" });
+      if (!res.ok) throw new Error("Unable to add to cart");
+
+      await res.json().catch(() => null);
+
+      // 🔹 This will update Header badge instantly
+      fetchCartCount();
+
+      toast.success("Added to cart");
+    } catch (e) {
+      toast.error(e.message || "Unable to add to cart");
+    }
   };
 
+
+const buyNow = async () => {
+  if (!product?.id) return;
+  if (!inStock) return toast.error("Out of stock");
+
+  const qty = clamp(quantity, 1, product.stock || 1);
+
+  try {
+    const url = `${API_BASE}/api/cart/${encodeURIComponent(userId)}/update?productId=${product.id}&quantity=${qty}`;
+    const res = await callWithAuth(url, { method: "PUT" });
+    if (!res.ok) throw new Error("Unable to set cart quantity");
+
+    await res.json().catch(() => null);
+    fetchCartCount();
+
+    navigate("/checkout");
+  } catch (e) {
+    toast.error(e.message || "Unable to proceed to checkout");
+  }
+};
+
+  const adjustQty = (dir) => {
+    if (!product) return;
+    setQuantity((q) => clamp(q + dir, 1, product.stock || 1));
+  };
+
+  // --------- skeletons ---------
   if (loading) {
     return (
-      <div className="flex min-h-screen flex-col bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Header />
-
-        <div className="container mx-auto px-6 py-16">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            {/* Image skeleton */}
-            <div className="space-y-4">
-              <div className="w-full h-96 bg-gray-200 rounded-2xl animate-pulse" />
-              <div className="flex gap-2">
-                {[1, 2, 3].map((n) => (
-                  <div
-                    key={n}
-                    className="w-20 h-20 bg-gray-200 rounded-lg animate-pulse"
-                  />
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            <div>
+              <Skeleton className="w-full aspect-[4/5] rounded-2xl" />
+              <div className="mt-4 grid grid-cols-6 gap-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="aspect-square rounded-xl" />
                 ))}
               </div>
             </div>
-
-            {/* Details skeleton */}
-            <div className="space-y-6">
-              <div className="h-8 w-3/4 bg-gray-200 rounded animate-pulse" />
-              <div className="h-6 w-1/2 bg-gray-200 rounded animate-pulse" />
-              <div className="h-20 w-full bg-gray-200 rounded animate-pulse" />
-              <div className="h-8 w-1/3 bg-gray-200 rounded animate-pulse" />
-              <div className="h-12 w-full bg-gray-200 rounded animate-pulse" />
+            <div>
+              <Skeleton className="h-8 w-80" />
+              <div className="mt-2 flex items-center gap-2">
+                <Skeleton className="h-6 w-20" />
+                <Skeleton className="h-6 w-12" />
+              </div>
+              <Separator className="my-6" />
+              <div className="space-y-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-4 w-full" />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-
+          <Separator className="my-10" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="aspect-[3/4] rounded-2xl" />
+            ))}
+          </div>
+        </main>
         <Footer />
       </div>
     );
   }
 
-  if (!product) {
+  if (error) {
     return (
-      <div className="flex min-h-screen flex-col bg-gray-50">
+      <div className="min-h-screen bg-background">
         <Header />
-        <div className="container mx-auto px-6 py-16 text-center">
-          <h1 className="text-2xl font-bold text-gray-800">
-            Product not found
-          </h1>
-          <Link
-            to="/"
-            className="mt-4 inline-block px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
-            Back to Home
-          </Link>
-        </div>
+        <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
+          <p className="text-destructive text-lg font-medium">{error}</p>
+          <Button className="mt-6" onClick={() => window.location.reload()}>Retry</Button>
+        </main>
         <Footer />
       </div>
     );
   }
 
-  const originalPrice = product.price;
-  const discountPercent = product.discount || 20;
-  const finalPrice = Math.round(originalPrice * (1 - discountPercent / 100));
-  const rating = product.rating || 4.3;
-  const ratingCount = product.ratingCount || 120;
-  const images = product.photos || ["https://via.placeholder.com/600x800"];
-
+  // --------- main render ---------
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Header />
 
-      {/* Breadcrumb */}
-      <div className="bg-white border-b">
-        <div className="container mx-auto px-6 py-4">
-          <nav className="text-sm text-gray-600">
-            <Link to="/" className="hover:text-green-600 transition">
-              Home
-            </Link>
-            <span className="mx-2">/</span>
-            {product.category && (
-              <>
-                <Link
-                  to={`/categories/${product.category.id}`}
-                  className="hover:text-green-600 transition">
-                  {product.category.name}
-                </Link>
-                <span className="mx-2">/</span>
-              </>
-            )}
-            <span className="text-gray-800 font-medium">{product.name}</span>
-          </nav>
-        </div>
-      </div>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Breadcrumbs */}
+        <nav className="text-sm text-muted-foreground mb-6 flex items-center gap-2" aria-label="Breadcrumb">
+          <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
+          <ChevronRight className="h-4 w-4 opacity-60" />
+          <Link to={`/category/${product?.category?.id || "all"}`} className="hover:text-foreground transition-colors">
+            {product?.category?.name || "Posters"}
+          </Link>
+          <ChevronRight className="h-4 w-4 opacity-60" />
+          <span className="text-foreground line-clamp-1" aria-current="page">{product?.name}</span>
+        </nav>
 
-      {/* Product Details */}
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            {/* Product Images */}
-            <div className="space-y-4">
-              <div className="relative">
-                <img
-                  src={images[selectedImage]}
-                  alt={product.name}
-                  className="w-full h-96 object-cover rounded-2xl shadow-lg"
-                />
-                {product.category && (
-                  <span className="absolute top-4 left-4 bg-green-600 text-xs px-3 py-1 rounded-full text-white shadow">
-                    {product.category.name}
-                  </span>
-                )}
-                {discountPercent > 0 && (
-                  <span className="absolute top-4 right-4 bg-red-500 text-xs px-3 py-1 rounded-full text-white shadow">
-                    {discountPercent}% OFF
-                  </span>
-                )}
-              </div>
-
-              {/* Thumbnail Images */}
-              {images.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto">
-                  {images.map((img, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedImage(index)}
-                      className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition ${
-                        selectedImage === index
-                          ? "border-green-600"
-                          : "border-gray-200 hover:border-green-300"
-                      }`}>
-                      <img
-                        src={img}
-                        alt={`${product.name} ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                  ))}
-                </div>
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+          {/* Left: Gallery */}
+          <div>
+            {/* hero image */}
+            <div className="relative rounded-3xl overflow-hidden shadow-sm ring-1 ring-border">
+              <img
+                src={photos[selected] || fallbackImg}
+                onError={(e) => (e.currentTarget.src = fallbackImg)}
+                alt={product?.name}
+                className="w-full h-full object-cover max-h-[640px]"
+              />
+              {discountPct > 0 && (
+                <Badge className="absolute top-4 left-4 text-sm">-{discountPct}%</Badge>
               )}
             </div>
-
-            {/* Product Info */}
-            <div className="space-y-6">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-800 mb-2">
-                  {product.name}
-                </h1>
-                <RatingStars
-                  rating={rating}
-                  count={ratingCount}
-                  size="h-5 w-5"
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                  Description
-                </h3>
-                <p className="text-gray-600 leading-relaxed">
-                  {product.description}
-                </p>
-              </div>
-
-              {/* Pricing */}
-              <div className="bg-gray-50 p-4 rounded-xl">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl font-bold text-green-600">
-                    ₹{finalPrice}
-                  </span>
-                  {discountPercent > 0 && (
-                    <>
-                      <span className="text-lg line-through text-gray-400">
-                        ₹{originalPrice}
-                      </span>
-                      <span className="bg-red-100 text-red-600 px-2 py-1 rounded-full text-xs font-medium">
-                        Save ₹{originalPrice - finalPrice}
-                      </span>
-                    </>
-                  )}
-                </div>
-                <p className="text-sm text-gray-500">Inclusive of all taxes</p>
-              </div>
-
-              {/* Quantity Selector */}
-              <div className="flex items-center gap-4">
-                <span className="font-medium text-gray-700">Quantity:</span>
-                <div className="flex items-center border border-gray-300 rounded-lg">
-                  <button
-                    onClick={() => handleQuantityChange(-1)}
-                    className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition">
-                    -
-                  </button>
-                  <span className="w-12 h-10 flex items-center justify-center font-medium border-x border-gray-300">
-                    {quantity}
-                  </span>
-                  <button
-                    onClick={() => handleQuantityChange(1)}
-                    className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition">
-                    +
-                  </button>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-4">
-                <button className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-xl transition shadow-lg">
-                  Buy Now
+            {/* thumbnails */}
+            <div ref={thumbStripRef} className="mt-4 grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-8 gap-3">
+              {photos.map((src, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSelected(i)}
+                  className={`relative aspect-square rounded-2xl ring-1 ring-border overflow-hidden transition-transform ${
+                    selected === i ? "ring-2 ring-foreground scale-[1.01]" : "hover:scale-[1.01]"
+                  }`}
+                  aria-label={`Show image ${i + 1}`}
+                >
+                  <img src={src} onError={(e) => (e.currentTarget.src = fallbackImg)} alt="thumb" className="w-full h-full object-cover" />
                 </button>
-                <button className="flex-1 bg-white hover:bg-gray-50 text-green-600 font-semibold py-3 px-6 rounded-xl border-2 border-green-600 transition">
-                  Add to Cart
-                </button>
-              </div>
+              ))}
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Related Products */}
-      {relatedProducts.length > 0 && (
-        <section className="py-16 bg-gray-50">
-          <div className="container mx-auto px-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-8">
-              Related Posters
-            </h2>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-              {relatedProducts.map((p) => {
-                const relatedOriginalPrice = p.price;
-                const relatedDiscountPercent = p.discount || 20;
-                const relatedFinalPrice = Math.round(
-                  relatedOriginalPrice * (1 - relatedDiscountPercent / 100)
-                );
-                const relatedRating = p.rating || 4.3;
-                const relatedRatingCount = p.ratingCount || 120;
-
-                return (
-                  <div
-                    key={p.id}
-                    className="group bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100">
-                    <div className="relative">
-                      <img
-                        src={
-                          p.photos?.[0] || "https://via.placeholder.com/400x600"
-                        }
-                        alt={p.name}
-                        className="w-full h-64 object-cover transform group-hover:scale-105 duration-500"
-                      />
-                    </div>
-
-                    <div className="p-4">
-                      <h3 className="text-sm font-semibold text-gray-800 line-clamp-1 mb-2">
-                        {p.name}
-                      </h3>
-                      <RatingStars
-                        rating={relatedRating}
-                        count={relatedRatingCount}
-                        size="h-4 w-4 mb-3"
-                      />
-
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-lg font-semibold text-green-600">
-                            ₹{relatedFinalPrice}
-                          </span>
-                          {relatedDiscountPercent > 0 && (
-                            <span className="ml-2 text-sm line-through text-gray-400">
-                              ₹{relatedOriginalPrice}
-                            </span>
-                          )}
-                        </div>
-                        <Link
-                          to={`/products/${p.id}`}
-                          className="px-3 py-1.5 text-xs font-semibold rounded-lg 
-                                    bg-green-600 hover:bg-green-700 text-white 
-                                    shadow-md transition cursor-pointer">
-                          View
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+          {/* Right: Details */}
+          <div className="lg:pl-4">
+            <div className="flex items-start justify-between gap-4">
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight leading-tight">{product?.name}</h1>
+              <button className="p-2 rounded-full border hover:bg-accent" aria-label="Wishlist">
+                <Heart className="h-5 w-5" />
+              </button>
             </div>
+
+            {/* rating */}
+            <div className="mt-2 flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star key={i} className={`h-4 w-4 ${i < Math.round(product?.rating || 0) ? "fill-yellow-400" : "opacity-30"}`} />
+                ))}
+              </div>
+              <span className="text-sm text-muted-foreground">{(product?.rating ?? 0).toFixed(1)} / 5</span>
+            </div>
+
+            {/* price */}
+            <div className="mt-4 flex items-end gap-3">
+              <div className="text-3xl font-bold">{currency(product?.discountPrice ?? product?.price)}</div>
+              {product?.discountPrice && product?.discountPrice < product?.price && (
+                <div className="text-muted-foreground line-through">{currency(product.price)}</div>
+              )}
+              {discountPct > 0 && <Badge variant="secondary">Save {discountPct}%</Badge>}
+            </div>
+
+            <p className="mt-4 text-muted-foreground leading-relaxed">{product?.description}</p>
+
+            <div className="mt-6 grid grid-cols-2 gap-4 text-sm">
+              <Spec label="SKU" value={product?.sku} />
+              <Spec label="Size" value={product?.size} />
+              <Spec label="Material" value={product?.material} />
+              <Spec label="Weight" value={`${product?.weight ?? "-"} kg`} />
+            </div>
+
+            <Separator className="my-6" />
+
+            {/* quantity selector */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center rounded-2xl border">
+                <button
+                  className="p-3 disabled:opacity-40"
+                  onClick={() => adjustQty(-1)}
+                  disabled={quantity <= 1}
+                  aria-label="Decrease quantity"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <input
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(clamp(Number(e.target.value || 1), 1, product?.stock || 1))}
+                  className="w-14 text-center outline-none bg-transparent"
+                  min={1}
+                  max={product?.stock || 1}
+                  aria-label="Quantity"
+                />
+                <button
+                  className="p-3 disabled:opacity-40"
+                  onClick={() => adjustQty(1)}
+                  disabled={!product?.stock || quantity >= product.stock}
+                  aria-label="Increase quantity"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              
+              <div className={`text-sm font-medium ${inStock ? "text-green-500" : "text-red-500"}`}>
+                {inStock ? "In stock" : "Out of stock"}
+              </div>
+
+            </div>
+
+            {/* actions */}
+            <div className="mt-5 flex flex-col sm:flex-row gap-3">
+              <Button size="lg" className="rounded-2xl h-12 text-base" onClick={addToCart} disabled={!inStock}>
+                Add to Cart
+              </Button>
+              <Button size="lg" className="rounded-2xl h-12 text-base" variant="secondary" onClick={buyNow} disabled={!inStock}>
+                Buy Now
+              </Button>
+            </div>
+
+            {/* assurances */}
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+              <Assure icon={ShieldCheck} title="Secure Checkout" subtitle="256‑bit SSL" />
+              <Assure icon={Truck} title="Fast Delivery" subtitle="2–5 business days" />
+              <Assure icon={RefreshCw} title="Easy Returns" subtitle="7‑day policy" />
+            </div>
+
+            {/* tags */}
+            {product?.tags?.length ? (
+              <div className="mt-6 flex flex-wrap gap-2">
+                {product.tags.map((t) => (
+                  <Badge key={t} variant="outline">#{t}</Badge>
+                ))}
+              </div>
+            ) : null}
           </div>
         </section>
-      )}
+
+        {/* Featured Posters */}
+        <section className="mt-12">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Featured Posters</h2>
+            <Link to={`/category/${product?.category?.id || "all"}`} className="text-sm text-muted-foreground hover:text-foreground">
+              View all
+            </Link>
+          </div>
+
+          {featured.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No featured items found.</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {featured.map((fp) => (
+                <Card key={fp.id} className="group overflow-hidden rounded-3xl">
+                  <Link to={`/products/${fp.id}`} className="block">
+                    <div className="relative aspect-[3/4] overflow-hidden rounded-3xl">
+                      <img
+                        src={fp?.photos?.[0]?.url || fallbackImg}
+                        onError={(e) => (e.currentTarget.src = fallbackImg)}
+                        alt={fp.name}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                      {fp.discountPrice && fp.discountPrice < fp.price && (
+                        <Badge className="absolute top-3 left-3">Save {100 - Math.round((fp.discountPrice / fp.price) * 100)}%</Badge>
+                      )}
+                    </div>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="font-medium line-clamp-1">{fp.name}</h3>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Star className="h-4 w-4" /> {(fp.rating ?? 0).toFixed(1)}
+                        </div>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <div className="font-semibold">{currency(fp.discountPrice ?? fp.price)}</div>
+                        {fp.discountPrice && fp.discountPrice < fp.price && (
+                          <div className="text-xs text-muted-foreground line-through">{currency(fp.price)}</div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Link>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
 
       <Footer />
+    </div>
+  );
+}
+
+function Spec({ label, value }) {
+  if (!value) return null;
+  return (
+    <div className="rounded-2xl border p-3">
+      <div className="text-muted-foreground text-xs">{label}</div>
+      <div className="font-medium">{value}</div>
+    </div>
+  );
+}
+
+function Assure({ icon: Icon, title, subtitle }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border p-3">
+      <Icon className="h-5 w-5" />
+      <div>
+        <div className="text-sm font-medium leading-none">{title}</div>
+        <div className="text-xs text-muted-foreground mt-1">{subtitle}</div>
+      </div>
     </div>
   );
 }

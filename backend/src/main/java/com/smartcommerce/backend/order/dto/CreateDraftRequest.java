@@ -1,9 +1,13 @@
 package com.smartcommerce.backend.order.dto;
 
+import com.smartcommerce.backend.auth.dto.AddressDTO;
+import lombok.Data;
+
+@Data
 public class CreateDraftRequest {
-    public Long userId; // fallback if no auth
-    public AddressDTO address;
-    public String paymentMethod; // "upi" | "card" | "netbanking" | "cod"
-    public GstDTO gst; // nullable
-    public String couponCode; // nullable
+    private String customerName;   // Full Name (from checkout form)
+    private String phone;          // Phone number
+    private AddressDTO address;    // ✅ Nested object (houseNo, area, landmark, etc.)
+    private String paymentMethod;  // "upi" | "card" | "netbanking" | "cod"
+    private String couponCode;     // Coupon code (optional)
 }

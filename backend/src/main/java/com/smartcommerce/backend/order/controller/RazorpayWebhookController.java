@@ -35,54 +35,57 @@ public class RazorpayWebhookController {
             @RequestHeader("X-Razorpay-Signature") String signature,
             @RequestBody String body
     ) {
-        // 1. Verify signature
+        // 1. Verify webhook signature
         if (!paymentService.verifyWebhook(body, signature)) {
             return ResponseEntity.status(401).build();
         }
 
-        // 2. Parse event
+        // 2. Parse event JSON
         JSONObject evt = new JSONObject(body);
         String event = evt.optString("event", "");
         JSONObject payload = evt.optJSONObject("payload") != null ? evt.getJSONObject("payload") : new JSONObject();
 
-        // 3. Handle captured payments
+        // 3. Handle payment captured
         if ("payment.captured".equals(event)) {
             JSONObject paymentObj = payload.getJSONObject("payment").getJSONObject("entity");
             String rzpOrderId = paymentObj.optString("order_id", null);
             String rzpPaymentId = paymentObj.optString("id", null);
 
             if (rzpOrderId != null) {
-                Payment p = paymentRepo.findByRazorpayOrderId(rzpOrderId);
-                if (p != null && p.getStatus() != PaymentStatus.CAPTURED) {
-                    p.setRazorpayPaymentId(rzpPaymentId);
-                    p.setStatus(PaymentStatus.CAPTURED);
-                    p.setUpdatedAt(Instant.now());
-                    paymentRepo.save(p);
+                paymentRepo.findByRazorpayOrderId(rzpOrderId).ifPresent(p -> {
+                    if (p.getStatus() != PaymentStatus.CAPTURED) {
+                        p.setRazorpayPaymentId(rzpPaymentId);
+                        p.setStatus(PaymentStatus.CAPTURED);
+                        p.setUpdatedAt(Instant.now());
+                        paymentRepo.save(p);
 
-                    // Mark order as paid + decrement stock
-                    Order o = p.getOrder();
-                    checkoutService.markPaid(o);
-                }
+                        // Mark order as paid and finalize
+                        Order o = p.getOrder();
+                        checkoutService.markPaid(o);
+                    }
+                });
             }
         }
 
-        // 4. Handle failed payments (optional but recommended)
+        // 4. Handle payment failed
         if ("payment.failed".equals(event)) {
             JSONObject paymentObj = payload.getJSONObject("payment").getJSONObject("entity");
             String rzpOrderId = paymentObj.optString("order_id", null);
             String rzpPaymentId = paymentObj.optString("id", null);
 
             if (rzpOrderId != null) {
-                Payment p = paymentRepo.findByRazorpayOrderId(rzpOrderId);
-                if (p != null && p.getStatus() != PaymentStatus.FAILED) {
-                    p.setRazorpayPaymentId(rzpPaymentId);
-                    p.setStatus(PaymentStatus.FAILED);
-                    p.setUpdatedAt(Instant.now());
-                    paymentRepo.save(p);
+                paymentRepo.findByRazorpayOrderId(rzpOrderId).ifPresent(p -> {
+                    if (p.getStatus() != PaymentStatus.FAILED) {
+                        p.setRazorpayPaymentId(rzpPaymentId);
+                        p.setStatus(PaymentStatus.FAILED);
+                        p.setUpdatedAt(Instant.now());
+                        paymentRepo.save(p);
 
-                    Order o = p.getOrder();
-                    o.setStatus(Order.OrderStatus.PAYMENT_PENDING); // still pending, or you can set FAILED if you prefer
-                }
+                        // Update order status
+                        Order o = p.getOrder();
+                        o.setStatus(Order.OrderStatus.FAILED);
+                    }
+                });
             }
         }
 
