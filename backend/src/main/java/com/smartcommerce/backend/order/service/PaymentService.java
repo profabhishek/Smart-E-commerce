@@ -50,25 +50,25 @@ public class PaymentService {
     }
 
     // ---------------- CREATE RAZORPAY ORDER ----------------
+    // ---------------- CREATE RAZORPAY ORDER ----------------
     @Transactional
     public RazorOrderResponse createRazorpayOrder(Order order) throws Exception {
         if (order.getTotalPayable() == null || order.getTotalPayable() <= 0) {
             throw new IllegalStateException("Invalid payable amount");
         }
 
-        // Idempotent: if already created, return existing details
         if (order.getRazorpayOrderId() != null) {
             return new RazorOrderResponse(
                     props.getKeyId(),
                     order.getRazorpayOrderId(),
-                    order.getTotalPayable(),
+                    order.getTotalPayable(), // already paise
                     "INR"
             );
         }
 
         RazorpayClient client = razorpay();
 
-        // Amount in paise
+        // ✅ order.getTotalPayable() is already paise
         JSONObject req = new JSONObject(Map.of(
                 "amount", order.getTotalPayable(),
                 "currency", "INR",
@@ -79,18 +79,16 @@ public class PaymentService {
         com.razorpay.Order rzpOrder = client.orders.create(req);
         String rzpOrderId = rzpOrder.get("id");
 
-        // Persist order
         order.setRazorpayOrderId(rzpOrderId);
         order.setStatus(Order.OrderStatus.PAYMENT_PENDING);
         order.setUpdatedAt(Instant.now());
         orderRepo.save(order);
 
-        // Seed payment row
         Payment p = new Payment();
         p.setOrder(order);
         p.setMethod(Payment.Gateway.RAZORPAY);
         p.setRazorpayOrderId(rzpOrderId);
-        p.setAmount(order.getTotalPayable());
+        p.setAmount(order.getTotalPayable()); // ✅ store paise
         p.setCurrency("INR");
         p.setStatus(PaymentStatus.CREATED);
         paymentRepo.save(p);
@@ -104,12 +102,11 @@ public class PaymentService {
         Order order = orderRepo.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        // Verify signature
         String payload = rzpOrderId + "|" + rzpPaymentId;
         String expected = hmacSha256(payload, props.getKeySecret());
-        if (!MessageDigest.isEqual(
-                expected.getBytes(StandardCharsets.UTF_8),
-                rzpSignature.getBytes(StandardCharsets.UTF_8))) {
+
+        // Razorpay signature is lower-case hex; compare case-insensitively for safety
+        if (rzpSignature == null || !expected.equalsIgnoreCase(rzpSignature)) {
             throw new SecurityException("Invalid Razorpay signature");
         }
 
@@ -123,41 +120,46 @@ public class PaymentService {
             RazorpayClient client = razorpay();
             com.razorpay.Payment rzpPayment = client.payments.fetch(rzpPaymentId);
 
-            // Core fields
-            String method = rzpPayment.get("method");   // upi, card, netbanking, wallet
-            String status = rzpPayment.get("status");   // created, authorized, captured, failed
+            String method = rzpPayment.get("method");
+            String status = rzpPayment.get("status"); // created, authorized, captured, failed
 
             payment.setPaymentMethod(method);
             payment.setRazorpayPaymentId(rzpPaymentId);
             payment.setRazorpaySignature(rzpSignature);
 
-            // Detailed tracking
-            JSONObject paymentJson = rzpPayment.toJson();
+            JSONObject json = rzpPayment.toJson();
 
             if ("upi".equalsIgnoreCase(method)) {
-                JSONObject upiObj = paymentJson.optJSONObject("upi");
+                JSONObject upiObj = json.optJSONObject("upi");
                 if (upiObj != null) payment.setUpiId(upiObj.optString("vpa", null));
-                JSONObject acquirer = paymentJson.optJSONObject("acquirer_data");
-                if (acquirer != null) payment.setReferenceId(acquirer.optString("upi_transaction_id", null));
+                JSONObject acq = json.optJSONObject("acquirer_data");
+                if (acq != null) payment.setReferenceId(acq.optString("upi_transaction_id", null));
             } else if ("card".equalsIgnoreCase(method)) {
-                JSONObject cardObj = paymentJson.optJSONObject("card");
-                if (cardObj != null) {
-                    payment.setCardLast4(cardObj.optString("last4", null));
-                    payment.setCardNetwork(cardObj.optString("network", null));
+                JSONObject card = json.optJSONObject("card");
+                if (card != null) {
+                    payment.setCardLast4(card.optString("last4", null));
+                    payment.setCardNetwork(card.optString("network", null));
                 }
             } else if ("netbanking".equalsIgnoreCase(method)) {
-                payment.setBankName(paymentJson.optString("bank", null));
-                JSONObject acquirer = paymentJson.optJSONObject("acquirer_data");
-                if (acquirer != null) payment.setReferenceId(acquirer.optString("bank_transaction_id", null));
+                payment.setBankName(json.optString("bank", null));
+                JSONObject acq = json.optJSONObject("acquirer_data");
+                if (acq != null) payment.setReferenceId(acq.optString("bank_transaction_id", null));
             }
 
-            // Status mapping
             if ("captured".equalsIgnoreCase(status)) {
+                long capturedAmountPaise = ((Number) rzpPayment.get("amount")).longValue(); // ✅ safe cast
+                payment.setAmount(capturedAmountPaise); // ✅ store actual paise captured
                 payment.setStatus(PaymentStatus.CAPTURED);
-                order.setStatus(Order.OrderStatus.PAID);
+
+                // Do NOT set PAID here; let markPaid() do stock + status
+                if (order.getStatus() == Order.OrderStatus.DRAFT) {
+                    order.setStatus(Order.OrderStatus.PAYMENT_PENDING);
+                }
+
             } else if ("failed".equalsIgnoreCase(status)) {
                 payment.setStatus(PaymentStatus.FAILED);
                 order.setStatus(Order.OrderStatus.FAILED);
+
             } else {
                 payment.setStatus(PaymentStatus.ATTEMPTED);
                 order.setStatus(Order.OrderStatus.PAYMENT_PENDING);
@@ -176,25 +178,26 @@ public class PaymentService {
     // ---------------- INITIATE REFUND (called from OrderService.cancelOrder) ----------------
     @Transactional
     public void initiateRefund(Order order, Payment payment) {
-        // Only for CAPTURED online payments
-        if (payment.getStatus() != PaymentStatus.CAPTURED || payment.getRazorpayPaymentId() == null) {
-            return;
-        }
+        if (payment.getStatus() != PaymentStatus.CAPTURED
+                || payment.getRazorpayPaymentId() == null) return;
+
         try {
             RazorpayClient client = razorpay();
 
             JSONObject req = new JSONObject();
-            req.put("amount", order.getTotalPayable()); // paise
-            req.put("speed", "optimum");                // or "instant" (fee applies)
+            req.put("amount", payment.getAmount());
+            req.put("speed", "optimum");
 
             Refund refund = client.payments.refund(payment.getRazorpayPaymentId(), req);
 
+            // Save refund attempt
             payment.setRefundId(refund.get("id"));
-            payment.setRefundStatus("REQUESTED");
-            payment.setRefundAmount(order.getTotalPayable());
-            // You may leave payment.status as CAPTURED until processed,
-            // or set to REFUNDED immediately if your policy prefers.
+            payment.setRefundStatus("PENDING");  // <-- force pending here
+            payment.setRefundAmount(payment.getAmount());
             paymentRepo.save(payment);
+
+            order.setStatus(Order.OrderStatus.REFUND_PENDING); // always pending until webhook
+            orderRepo.save(order);
 
         } catch (Exception e) {
             throw new RuntimeException("Refund initiation failed: " + e.getMessage(), e);
@@ -209,8 +212,9 @@ public class PaymentService {
             p.setStatus(PaymentStatus.REFUNDED);
             paymentRepo.save(p);
 
-            // Optionally update order status notes or timeline here
-            // (Not changing Order status; it's already CANCELLED in cancel flow)
+            Order o = p.getOrder();
+            o.setStatus(Order.OrderStatus.REFUNDED);
+            orderRepo.save(o);
         });
     }
 

@@ -3,6 +3,7 @@ package com.smartcommerce.backend.order.service;
 import com.smartcommerce.backend.auth.dto.AddressDTO;
 import com.smartcommerce.backend.auth.entity.Address;
 import com.smartcommerce.backend.auth.entity.User;
+import com.smartcommerce.backend.auth.repository.AddressRepository;
 import com.smartcommerce.backend.auth.repository.UserRepository;
 import com.smartcommerce.backend.cart.repository.CartItemRepository;
 import com.smartcommerce.backend.order.dto.CreateDraftRequest;
@@ -22,6 +23,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class CheckoutService {
@@ -33,6 +35,7 @@ public class CheckoutService {
     private final CouponService couponService;
     private final CartItemRepository cartItemRepo;
     private final UserRepository userRepo;
+    private final AddressRepository addressRepo;
 
     public CheckoutService(OrderRepository orderRepo,
                            ProductRepository productRepo,
@@ -40,7 +43,8 @@ public class CheckoutService {
                            CartPort cartPort,
                            CouponService couponService,
                            CartItemRepository cartItemRepo,
-                           UserRepository userRepo) {
+                           UserRepository userRepo,
+                           AddressRepository addressRepo) {
         this.orderRepo = orderRepo;
         this.productRepo = productRepo;
         this.productPhotoRepo = productPhotoRepo;
@@ -48,6 +52,7 @@ public class CheckoutService {
         this.couponService = couponService;
         this.cartItemRepo = cartItemRepo;
         this.userRepo = userRepo;
+        this.addressRepo = addressRepo;
     }
 
     public Order getOrderById(Long id) {
@@ -113,7 +118,7 @@ public class CheckoutService {
         ship.setLandmark(a.getLandmark());
         ship.setCity(a.getCity());
         ship.setState(a.getState());
-        ship.setCountry(a.getCountry());
+        ship.setCountry(isBlank(a.getCountry()) ? "India" : a.getCountry().trim());
         ship.setPinCode(a.getPinCode());
         ship.setType(isBlank(a.getType()) ? "HOME" : a.getType().toUpperCase());
 
@@ -141,19 +146,33 @@ public class CheckoutService {
         // ---- Persist order first ----
         Order savedOrder = orderRepo.save(o);
 
-        // ---- Always add a new address row to user's saved addresses ----
-        Address newAddr = new Address();
-        newAddr.setUser(user);
-        newAddr.setHouseNo(a.getHouseNo());
-        newAddr.setArea(a.getArea());
-        newAddr.setLandmark(a.getLandmark());
-        newAddr.setCity(a.getCity());
-        newAddr.setState(a.getState());
-        newAddr.setCountry(a.getCountry());
-        newAddr.setPinCode(a.getPinCode());
-        user.getAddresses().add(newAddr);
+        // ---- Deduplicate address before adding to user's saved addresses ----
+        String houseNo = safe(a.getHouseNo());
+        String area    = safe(a.getArea());
+        String city    = safe(a.getCity());
+        String state   = safe(a.getState());
+        String pinCode = safe(a.getPinCode());
+        String country = isBlank(a.getCountry()) ? "India" : a.getCountry().trim();
 
-        // ---- ✅ NEW: If user's name/phone are blank, fill them from checkout once ----
+        Optional<Address> existing = addressRepo.findExistingAddress(
+                user.getId(), houseNo, area, city, state, pinCode, country
+        );
+
+        if (existing.isEmpty()) {
+            Address newAddr = new Address();
+            newAddr.setUser(user);
+            newAddr.setHouseNo(houseNo);
+            newAddr.setArea(area);
+            newAddr.setLandmark(safe(a.getLandmark()));
+            newAddr.setCity(city);
+            newAddr.setState(state);
+            newAddr.setCountry(country);
+            newAddr.setPinCode(pinCode);
+
+            user.getAddresses().add(newAddr);
+        }
+
+        // ---- ✅ If user's name/phone are blank, fill them from checkout once ----
         if (isBlank(user.getName()) && !isBlank(req.getCustomerName())) {
             user.setName(req.getCustomerName().trim());
         }
@@ -161,7 +180,7 @@ public class CheckoutService {
             user.setPhone(req.getPhone().trim());
         }
 
-        // Persist user (cascades address)
+        // Persist user (cascades address only if new)
         userRepo.save(user);
 
         return savedOrder;

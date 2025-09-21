@@ -12,7 +12,7 @@ public class Order {
 
     public enum OrderStatus {
         DRAFT, PAYMENT_PENDING, PAID, CONFIRMED,
-        PACKED, SHIPPED, DELIVERED, CANCELLED, FAILED
+        PACKED, SHIPPED, DELIVERED, CANCELLED, FAILED, REFUND_PENDING, REFUNDED
     }
 
     @Id
@@ -102,5 +102,9 @@ public class Order {
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = Instant.now();
+    }
+
+    public boolean isDeliveredOrBeyond() {
+        return status == OrderStatus.DELIVERED;
     }
 }

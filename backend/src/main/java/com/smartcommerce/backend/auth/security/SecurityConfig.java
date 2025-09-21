@@ -47,6 +47,7 @@ public class SecurityConfig {
                         ).permitAll() // Admin login + reset
                         .requestMatchers("/api/products/**").permitAll() // 👈 public product browsing
                         .requestMatchers("/api/categories/**").permitAll() // 👈 if you want public category list
+                        .requestMatchers("/api/razorpay/webhook").permitAll()
                         .requestMatchers("/api/orders/user/**").hasAnyRole("USER", "ADMIN")
 
                         // ===== Protected (JWT required) =====

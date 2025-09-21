@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -102,15 +103,21 @@ public class OrderController {
         return orderService.finalizeOrder(id, me.getId());
     }
 
-    @PostMapping("/{id}/cancel")
+    @DeleteMapping("/{id}/cancel")
     public ResponseEntity<?> cancelOrder(@PathVariable Long id, Authentication auth) {
         try {
-            orderService.cancelOrder(id, auth.getName());
-            return ResponseEntity.ok("Order cancelled successfully");
+            Order order = orderService.cancelOrder(id, auth.getName());
+            return ResponseEntity.ok(Map.of(
+                    "orderId", order.getId(),
+                    "status", order.getStatus().name(),   // ✅ actual status
+                    "message", "Order cancelled successfully"
+            ));
         } catch (AccessDeniedException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Not allowed");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Not allowed"));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", e.getMessage()));
         }
     }
 

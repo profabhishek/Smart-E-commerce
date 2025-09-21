@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton"; // ✅ NEW
 import {
   Loader2,
   BadgeIndianRupee,
@@ -37,9 +38,9 @@ export default function CheckoutPage() {
   const [selectedAddressIndex, setSelectedAddressIndex] = useState(0);
 
   if (!userId) {
-  navigate("/login");
-  return null; // or show spinner
-}
+    navigate("/login");
+    return null;
+  }
 
   const [address, setAddress] = useState({
     fullName: "",
@@ -90,7 +91,8 @@ export default function CheckoutPage() {
       } catch (e) {
         console.error(e);
         toast.error("Could not load your cart.");
-        navigate("/cart");
+        // Don't navigate away; show empty state instead
+        setCart({ items: [] });
       } finally {
         setLoading(false);
       }
@@ -98,7 +100,6 @@ export default function CheckoutPage() {
   }, [userId]);
 
   // ---------- fetch user profile --------
-
   const mapBackendAddress = (addr) => {
     if (!addr) return {};
     return {
@@ -163,6 +164,7 @@ export default function CheckoutPage() {
   // ---------- validation ----------
   const isValidPhone = (p) => /^[6-9]\d{9}$/.test(p);
   const isValidPin = (p) => /^\d{6}$/.test(p);
+  const isValidGstin = (g) => /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(g); // ✅ quick check
 
   const validateForm = () => {
     if (!address.fullName.trim()) return "Please enter full name.";
@@ -181,17 +183,17 @@ export default function CheckoutPage() {
   };
 
   async function clearCartAfterPayment() {
-  if (cart?.items?.length) {
-    for (const cartItem of cart.items) {
-      await fetch(`${BASE_URL}/api/cart/${userId}/remove?productId=${cartItem.productId}`, {
-        method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+    if (cart?.items?.length) {
+      for (const cartItem of cart.items) {
+        await fetch(`${BASE_URL}/api/cart/${userId}/remove?productId=${cartItem.productId}`, {
+          method: "DELETE",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+      }
     }
+    localStorage.removeItem("cart");
+    setCart(null);
   }
-  localStorage.removeItem("cart");
-  setCart(null);
-}
 
   // ---------- place order ----------
   const handlePlaceOrder = async () => {
@@ -210,22 +212,22 @@ export default function CheckoutPage() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-        customerName: address.fullName,
-        phone: address.phone,
-        address: {
-          houseNo: address.houseNo,
-          area: address.area,
-          landmark: address.landmark,
-          city: address.city,
-          state: address.state,
-          country: address.country,
-          pinCode: address.pinCode,
-          type: address.type,
-        },
-        gst,
-        couponCode: coupon,
-        paymentMethod,
-      }),
+          customerName: address.fullName,
+          phone: address.phone,
+          address: {
+            houseNo: address.houseNo,
+            area: address.area,
+            landmark: address.landmark,
+            city: address.city,
+            state: address.state,
+            country: address.country,
+            pinCode: address.pinCode,
+            type: address.type,
+          },
+          gst,
+          couponCode: coupon,
+          paymentMethod,
+        }),
       });
 
       if (!draftRes.ok) throw new Error("Could not create order draft");
@@ -252,7 +254,7 @@ export default function CheckoutPage() {
         setCart(null);
 
         toast.success("Order placed (COD)!");
-        navigate("/order-details");
+        navigate(`/order-details?orderId=${order.id}`, { state: { orderId: order.id } });
         return;
       }
 
@@ -277,16 +279,7 @@ export default function CheckoutPage() {
           netbanking: paymentMethod === "netbanking" ? "1" : "0",
         },
         handler: async function (response) {
-          console.log("🔔 Razorpay returned response:", response);
-
           try {
-            console.log("➡️ Sending confirm-payment payload:", {
-              orderId: order.id,
-              razorpayOrderId: response?.razorpay_order_id,
-              razorpayPaymentId: response?.razorpay_payment_id,
-              razorpaySignature: response?.razorpay_signature,
-            });
-
             const res = await fetch(`${BASE_URL}/api/checkout/confirm-payment`, {
               method: "POST",
               headers: {
@@ -302,7 +295,6 @@ export default function CheckoutPage() {
             });
 
             if (res.ok) {
-              console.log("✅ Confirm-payment success");
               await clearCartAfterPayment();
               toast.success("Payment successful!");
               setTimeout(() => {
@@ -311,63 +303,51 @@ export default function CheckoutPage() {
               return;
             }
 
-            // Backend returned error (500, 400, etc.)
-            const errorText = await res.text();
-            console.warn("⚠️ Confirm-payment failed:", errorText);
-
-            // 🔁 fallback: poll order status up to 3 times
+            // fallback: poll order status up to 3 times
             for (let i = 0; i < 3; i++) {
               await new Promise((resolve) => setTimeout(resolve, 2000));
               const poll = await fetch(`${BASE_URL}/api/orders/${order.id}/status`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
               });
-
               if (poll.ok) {
-                const status = await poll.text(); // "PAID", "FAILED", etc.
-                console.log(`🔎 Poll attempt ${i + 1}:`, status);
+                const status = await poll.text();
                 if (status === "PAID") {
                   await clearCartAfterPayment();
                   toast.success("Payment successful!");
-                  setTimeout(() => navigate("/order-details"), 500);
+                  setTimeout(() => {
+                    navigate(`/order-details?orderId=${order.id}`, { state: { orderId: order.id } });
+                  }, 500);
                   return;
                 } else if (status === "FAILED") {
-                  break; // stop retrying if backend says failed
+                  break;
                 }
               }
             }
 
             toast.error("Payment could not be confirmed. Please contact support.");
           } catch (err) {
-            console.error("💥 Payment confirmation error:", err);
-
-            // 🛑 Last-chance fallback
+            console.error("Payment confirmation error:", err);
             try {
               const poll = await fetch(`${BASE_URL}/api/orders/${order.id}/status`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
               });
-
               if (poll.ok) {
                 const status = await poll.text();
-                console.log("Last-chance poll result:", status);
                 if (status === "PAID") {
                   await clearCartAfterPayment();
                   toast.success("Payment successful!");
-                  setTimeout(() => navigate("/order-details"), 500);
+                  setTimeout(() => {
+                    navigate(`/order-details?orderId=${order.id}`, { state: { orderId: order.id } });
+                  }, 500);
                   return;
                 }
               }
-            } catch (pollErr) {
-              console.error("Fallback poll failed:", pollErr);
-            }
-
+            } catch {}
             toast.error("Could not confirm payment. Please try again.");
           }
         },
         modal: {
           ondismiss: async function () {
-            console.warn("Payment popup closed by user");
-
-            // optional: mark order as FAILED in backend
             await fetch(`${BASE_URL}/api/checkout/payment-failed`, {
               method: "POST",
               headers: {
@@ -379,7 +359,6 @@ export default function CheckoutPage() {
                 reason: "Payment window closed by user",
               }),
             });
-
             toast.error("Payment was cancelled.");
           },
         },
@@ -391,10 +370,8 @@ export default function CheckoutPage() {
         return;
       }
 
-      console.log("Opening Razorpay:", options);
       const rzp = new window.Razorpay(options);
       rzp.open();
-
     } catch (e) {
       console.error(e);
       toast.error("Could not place order");
@@ -404,38 +381,37 @@ export default function CheckoutPage() {
   };
 
   // ---------- apply coupon ----------
-const applyCoupon = async () => {
-  if (!coupon.trim()) return toast.error("Please enter a coupon code");
+  const applyCoupon = async () => {
+    if (!coupon.trim()) return toast.error("Please enter a coupon code");
 
-  setCouponApplying(true);
-  try {
-    const res = await fetch(`${BASE_URL}/api/coupons/apply`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        couponCode: coupon.trim(),
-      }),
-    });
+    setCouponApplying(true);
+    try {
+      const res = await fetch(`${BASE_URL}/api/coupons/apply`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          couponCode: coupon.trim(),
+        }),
+      });
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Invalid coupon");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Invalid coupon");
 
-    setCouponMeta(data); // store response (e.g. { discountAmount, message })
-    toast.success(data.message || "Coupon applied!");
-  } catch (err) {
-    console.error("Coupon error:", err);
-    toast.error(err.message || "Could not apply coupon");
-    setCouponMeta(null);
-  } finally {
-    setCouponApplying(false);
-  }
-};
+      setCouponMeta(data); // e.g. { discountAmount, message }
+      toast.success(data.message || "Coupon applied!");
+    } catch (err) {
+      console.error("Coupon error:", err);
+      toast.error(err.message || "Could not apply coupon");
+      setCouponMeta(null);
+    } finally {
+      setCouponApplying(false);
+    }
+  };
 
-
-  // ---------- rest of your JSX (unchanged) ----------
+  // ---------- derived ----------
   const payCta =
     paymentMethod === "upi"
       ? "Pay via UPI"
@@ -444,6 +420,138 @@ const applyCoupon = async () => {
       : paymentMethod === "netbanking"
       ? "Pay via Netbanking"
       : "Place Order (COD)";
+
+  // ---------- skeletons ----------
+  const CheckoutSkeleton = () => (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="lg:col-span-2 space-y-8">
+        {/* Address card skeleton */}
+        <section className="rounded-2xl border p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="h-5 w-40" />
+          </div>
+          <div className="space-y-4">
+            {/* saved addresses radio */}
+            <div className="space-y-3">
+              {[0, 1].map((i) => (
+                <div key={i} className="flex items-start gap-3 rounded-xl p-3 border">
+                  <Skeleton className="h-4 w-4 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-72" />
+                    <Skeleton className="h-3 w-48" />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* form grid */}
+            <div className="grid sm:grid-cols-2 gap-4">
+              {Array.from({ length: 10 }).map((_, idx) => (
+                <div key={idx} className={idx >= 8 ? "sm:col-span-2" : ""}>
+                  <Skeleton className="h-4 w-24 mb-2" />
+                  <Skeleton className="h-10 w-full rounded-md" />
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 flex items-center gap-2">
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-4 w-56" />
+            </div>
+          </div>
+        </section>
+
+        {/* Payment card skeleton */}
+        <section className="rounded-2xl border p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="h-5 w-24" />
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex items-center gap-3 rounded-xl border p-3">
+                <Skeleton className="h-4 w-4 rounded-full" />
+                <div className="space-y-1">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Separator className="my-4" />
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-4 w-48" />
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <Skeleton className="h-4 w-20 mb-2" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div>
+                <Skeleton className="h-4 w-28 mb-2" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* Right column skeleton */}
+      <aside className="space-y-4">
+        <section className="rounded-2xl border p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="h-5 w-32" />
+          </div>
+
+          <div className="space-y-2 text-sm">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex justify-between items-center">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+            ))}
+            <Separator className="my-2" />
+            <div className="flex justify-between items-center">
+              <Skeleton className="h-5 w-16" />
+              <Skeleton className="h-5 w-20" />
+            </div>
+            <Skeleton className="h-3 w-40 mt-1" />
+          </div>
+
+          <div className="mt-4 flex gap-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-20" />
+          </div>
+          <Skeleton className="h-3 w-48 mt-2" />
+        </section>
+
+        <Skeleton className="h-12 w-full rounded-md" />
+
+        <div className="rounded-2xl border p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Skeleton className="h-4 w-4 rounded-full" />
+            <Skeleton className="h-4 w-28" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-56" />
+            <Skeleton className="h-3 w-64" />
+            <Skeleton className="h-3 w-48" />
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+
+  // ---------- empty cart UI ----------
+  const showEmpty = !loading && (!cart || !Array.isArray(cart.items) || cart.items.length === 0);
 
   return (
     <>
@@ -454,351 +562,373 @@ const applyCoupon = async () => {
           <span className="text-sm">Secure Checkout • UPI / Cards / Netbanking / COD</span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* LEFT: Address + Payment + GST */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Address */}
-            <section className="rounded-2xl border p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <MapPin className="h-5 w-5 text-green-600" />
-                <h2 className="text-lg font-semibold">Delivery Address</h2>
-              </div>
-
-              {/* Saved address selector */}
-              {addresses.length > 0 && (
-                <RadioGroup
-                  value={String(selectedAddressIndex)}
-                  onValueChange={(val) => setSelectedAddressIndex(Number(val))}
-                  className="space-y-3 mb-4"
-                >
-                  {addresses.map((addr, i) => (
-                    <label
-                      key={addr.id || i}
-                      className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer ${
-                        selectedAddressIndex === i ? "border-green-600 bg-green-50" : "border-gray-200"
-                      }`}
-                    >
-                      <RadioGroupItem value={String(i)} />
-                      <div>
-                        <p className="font-medium">{address.fullName || "Saved Address"}</p>
-                        <p className="text-sm text-gray-600">
-                          {[addr.houseNo, addr.area, addr.city, addr.state].filter(Boolean).join(", ")}{" "}
-                          - {addr.pinCode}
-                        </p>
-                        <p className="text-xs text-gray-500">📞 {address.phone || "-"}</p>
-                      </div>
-                    </label>
-                  ))}
-                </RadioGroup>
-              )}
-
-              {/* Editable form (prefilled) */}
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <Label>Full Name</Label>
-                  <Input
-                    value={address.fullName}
-                    onChange={(e) => setAddress({ ...address, fullName: e.target.value })}
-                    placeholder="e.g. Abhishek Jha"
-                    className="mt-2"
-                  />
-                </div>
-                <div>
-                  <Label>Phone (10-digit)</Label>
-                  <Input
-                    value={address.phone}
-                    onChange={(e) => setAddress({ ...address, phone: e.target.value.replace(/\D/g, "") })}
-                    maxLength={10}
-                    placeholder="98xxxxxxxx"
-                    className="mt-2"
-                  />
+        {/* Empty Cart State */}
+        {showEmpty ? (
+          <div className="rounded-2xl border p-10 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border">
+              <Package className="h-6 w-6" />
+            </div>
+            <h2 className="text-xl font-semibold">Your cart is empty</h2>
+            <p className="text-sm text-gray-600 mt-1">Add some posters to continue to checkout.</p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <Link to="/">
+                <Button>Browse Posters</Button>
+              </Link>
+              <Link to="/cart" className="text-green-700 text-sm hover:underline">
+                View Cart
+              </Link>
+            </div>
+          </div>
+        ) : loading ? (
+          // Skeleton while fetching data
+          <CheckoutSkeleton />
+        ) : (
+          // Main content
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* LEFT: Address + Payment + GST */}
+            <div className="lg:col-span-2 space-y-8">
+              {/* Address */}
+              <section className="rounded-2xl border p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <MapPin className="h-5 w-5 text-green-600" />
+                  <h2 className="text-lg font-semibold">Delivery Address</h2>
                 </div>
 
-                <div>
-                  <Label>House No.</Label>
-                  <Input
-                    value={address.houseNo}
-                    onChange={(e) => setAddress({ ...address, houseNo: e.target.value })}
-                    placeholder="123"
-                    className="mt-2"
-                  />
-                </div>
-                <div>
-                  <Label>Area</Label>
-                  <Input
-                    value={address.area}
-                    onChange={(e) => setAddress({ ...address, area: e.target.value })}
-                    placeholder="Street / Colony"
-                    className="mt-2"
-                  />
-                </div>
+                {/* Saved address selector */}
+                {addresses.length > 0 && (
+                  <RadioGroup
+                    value={String(selectedAddressIndex)}
+                    onValueChange={(val) => setSelectedAddressIndex(Number(val))}
+                    className="space-y-3 mb-4"
+                  >
+                    {addresses.map((addr, i) => (
+                      <label
+                        key={addr.id || i}
+                        className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer ${
+                          selectedAddressIndex === i ? "border-green-600 bg-green-50" : "border-gray-200"
+                        }`}
+                      >
+                        <RadioGroupItem value={String(i)} />
+                        <div>
+                          <p className="font-medium">{address.fullName || "Saved Address"}</p>
+                          <p className="text-sm text-gray-600">
+                            {[addr.houseNo, addr.area, addr.city, addr.state].filter(Boolean).join(", ")}{" "}
+                            - {addr.pinCode}
+                          </p>
+                          <p className="text-xs text-gray-500">📞 {address.phone || "-"}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </RadioGroup>
+                )}
 
-                <div className="sm:col-span-2">
-                  <Label>Landmark</Label>
-                  <Input
-                    value={address.landmark}
-                    onChange={(e) => setAddress({ ...address, landmark: e.target.value })}
-                    placeholder="Near park, mall..."
-                    className="mt-2"
-                  />
-                </div>
-
-                <div>
-                  <Label>City</Label>
-                  <Input
-                    value={address.city}
-                    onChange={(e) => setAddress({ ...address, city: e.target.value })}
-                    placeholder="City"
-                    className="mt-2"
-                  />
-                </div>
-                <div>
-                  <Label>Pin Code</Label>
-                  <Input
-                    value={address.pinCode}
-                    onChange={(e) => setAddress({ ...address, pinCode: e.target.value.replace(/\D/g, "") })}
-                    maxLength={6}
-                    placeholder="110001"
-                    className="mt-2"
-                  />
-                </div>
-
-                <div>
-                  <Label>Country</Label>
-                  <Input
-                    value={address.country}
-                    onChange={(e) => setAddress({ ...address, country: e.target.value })}
-                    placeholder="India"
-                    className="mt-2"
-                  />
-                </div>
-                <div>
-                  <Label className="mb-2">State</Label>
-                  <Input
-                    value={address.state}
-                    onChange={(e) => setAddress({ ...address, state: e.target.value })}
-                    placeholder="Delhi"
-                    className="mt-2"
-                  />
-                  {/* If you prefer a dropdown, swap Input with <Select> and options */}
-                </div>
-
-                <div className="sm:col-span-2">
-                  <Label className="mb-2">Address Type</Label>
-                  <Select value={address.type} onValueChange={(v) => setAddress({ ...address, type: v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent side="bottom" sideOffset={8}>
-                      <SelectItem value="home">Home</SelectItem>
-                      <SelectItem value="work">Work</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-2">
-                <input
-                  id="whatsapp"
-                  type="checkbox"
-                  checked={whatsappUpdates}
-                  onChange={(e) => setWhatsappUpdates(e.target.checked)}
-                  className="h-4 w-4"
-                />
-                <Label htmlFor="whatsapp" className="flex items-center gap-1 cursor-pointer">
-                  <Smartphone className="h-4 w-4" /> Get order updates on WhatsApp
-                </Label>
-              </div>
-            </section>
-
-            {/* Payment */}
-            <section className="rounded-2xl border p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <BadgeIndianRupee className="h-5 w-5 text-green-600" />
-                <h2 className="text-lg font-semibold">Payment</h2>
-              </div>
-
-              <RadioGroup
-                value={paymentMethod}
-                onValueChange={setPaymentMethod}
-                className="grid sm:grid-cols-2 gap-3"
-              >
-                <label className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer">
-                  <RadioGroupItem value="upi" />
+                {/* Editable form (prefilled) */}
+                <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <div className="font-medium">UPI</div>
-                    <div className="text-sm text-gray-500">GPay / PhonePe / Paytm UPI</div>
+                    <Label>Full Name</Label>
+                    <Input
+                      value={address.fullName}
+                      onChange={(e) => setAddress({ ...address, fullName: e.target.value })}
+                      placeholder="e.g. Abhishek Jha"
+                      className="mt-2"
+                    />
                   </div>
-                </label>
-
-                <label className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer">
-                  <RadioGroupItem value="card" />
                   <div>
-                    <div className="font-medium">Cards</div>
-                    <div className="text-sm text-gray-500">Visa / Mastercard / Rupay</div>
+                    <Label>Phone (10-digit)</Label>
+                    <Input
+                      value={address.phone}
+                      onChange={(e) => setAddress({ ...address, phone: e.target.value.replace(/\D/g, "") })}
+                      maxLength={10}
+                      placeholder="98xxxxxxxx"
+                      className="mt-2"
+                    />
                   </div>
-                </label>
 
-                <label className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer">
-                  <RadioGroupItem value="netbanking" />
                   <div>
-                    <div className="font-medium">Netbanking</div>
-                    <div className="text-sm text-gray-500">All major banks</div>
+                    <Label>House No.</Label>
+                    <Input
+                      value={address.houseNo}
+                      onChange={(e) => setAddress({ ...address, houseNo: e.target.value })}
+                      placeholder="123"
+                      className="mt-2"
+                    />
                   </div>
-                </label>
+                  <div>
+                    <Label>Area</Label>
+                    <Input
+                      value={address.area}
+                      onChange={(e) => setAddress({ ...address, area: e.target.value })}
+                      placeholder="Street / Colony"
+                      className="mt-2"
+                    />
+                  </div>
 
-              </RadioGroup>
+                  <div className="sm:col-span-2">
+                    <Label>Landmark</Label>
+                    <Input
+                      value={address.landmark}
+                      onChange={(e) => setAddress({ ...address, landmark: e.target.value })}
+                      placeholder="Near park, mall..."
+                      className="mt-2"
+                    />
+                  </div>
 
-              <Separator className="my-4" />
+                  <div>
+                    <Label>City</Label>
+                    <Input
+                      value={address.city}
+                      onChange={(e) => setAddress({ ...address, city: e.target.value })}
+                      placeholder="City"
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label>Pin Code</Label>
+                    <Input
+                      value={address.pinCode}
+                      onChange={(e) => setAddress({ ...address, pinCode: e.target.value.replace(/\D/g, "") })}
+                      maxLength={6}
+                      placeholder="110001"
+                      className="mt-2"
+                    />
+                  </div>
 
-              {/* GST Invoice */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
+                  <div>
+                    <Label>Country</Label>
+                    <Input
+                      value={address.country}
+                      onChange={(e) => setAddress({ ...address, country: e.target.value })}
+                      placeholder="India"
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label className="mb-2">State</Label>
+                    <Input
+                      value={address.state}
+                      onChange={(e) => setAddress({ ...address, state: e.target.value })}
+                      placeholder="Delhi"
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <Label className="mb-2">Address Type</Label>
+                    <Select value={address.type} onValueChange={(v) => setAddress({ ...address, type: v })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent side="bottom" sideOffset={8}>
+                        <SelectItem value="home">Home</SelectItem>
+                        <SelectItem value="work">Work</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-2">
                   <input
-                    id="gst"
+                    id="whatsapp"
                     type="checkbox"
-                    checked={gst.addGst}
-                    onChange={(e) => setGst((prev) => ({ ...prev, addGst: e.target.checked }))}
+                    checked={whatsappUpdates}
+                    onChange={(e) => setWhatsappUpdates(e.target.checked)}
                     className="h-4 w-4"
                   />
-                  <Label htmlFor="gst" className="cursor-pointer">Add GST invoice (optional)</Label>
+                  <Label htmlFor="whatsapp" className="flex items-center gap-1 cursor-pointer">
+                    <Smartphone className="h-4 w-4" /> Get order updates on WhatsApp
+                  </Label>
                 </div>
-                {gst.addGst && (
-                  <div className="grid sm:grid-cols-2 gap-3">
+              </section>
+
+              {/* Payment */}
+              <section className="rounded-2xl border p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <BadgeIndianRupee className="h-5 w-5 text-green-600" />
+                  <h2 className="text-lg font-semibold">Payment</h2>
+                </div>
+
+                <RadioGroup
+                  value={paymentMethod}
+                  onValueChange={setPaymentMethod}
+                  className="grid sm:grid-cols-2 gap-3"
+                >
+                  <label className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer">
+                    <RadioGroupItem value="upi" />
                     <div>
-                      <Label>GSTIN</Label>
-                      <Input
-                        value={gst.gstin}
-                        onChange={(e) =>
-                          setGst((prev) => ({ ...prev, gstin: e.target.value.toUpperCase() }))
-                        }
-                        placeholder="22AAAAA0000A1Z5"
-                        maxLength={15}
-                      />
+                      <div className="font-medium">UPI</div>
+                      <div className="text-sm text-gray-500">GPay / PhonePe / Paytm UPI</div>
                     </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer">
+                    <RadioGroupItem value="card" />
                     <div>
-                      <Label>Business Name</Label>
-                      <Input
-                        value={gst.businessName}
-                        onChange={(e) =>
-                          setGst((prev) => ({ ...prev, businessName: e.target.value }))
-                        }
-                        placeholder="Your Company Pvt Ltd"
-                      />
+                      <div className="font-medium">Cards</div>
+                      <div className="text-sm text-gray-500">Visa / Mastercard / Rupay</div>
                     </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer">
+                    <RadioGroupItem value="netbanking" />
+                    <div>
+                      <div className="font-medium">Netbanking</div>
+                      <div className="text-sm text-gray-500">All major banks</div>
+                    </div>
+                  </label>
+                </RadioGroup>
+
+                <Separator className="my-4" />
+
+                {/* GST Invoice */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="gst"
+                      type="checkbox"
+                      checked={gst.addGst}
+                      onChange={(e) => setGst((prev) => ({ ...prev, addGst: e.target.checked }))}
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor="gst" className="cursor-pointer">Add GST invoice (optional)</Label>
+                  </div>
+                  {gst.addGst && (
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <Label>GSTIN</Label>
+                        <Input
+                          value={gst.gstin}
+                          onChange={(e) =>
+                            setGst((prev) => ({ ...prev, gstin: e.target.value.toUpperCase() }))
+                          }
+                          placeholder="22AAAAA0000A1Z5"
+                          maxLength={15}
+                        />
+                      </div>
+                      <div>
+                        <Label>Business Name</Label>
+                        <Input
+                          value={gst.businessName}
+                          onChange={(e) =>
+                            setGst((prev) => ({ ...prev, businessName: e.target.value }))
+                          }
+                          placeholder="Your Company Pvt Ltd"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>
+
+            {/* RIGHT: Order Summary */}
+            <aside className="space-y-4">
+              <section className="rounded-2xl border p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Package className="h-5 w-5 text-green-600" />
+                  <h2 className="text-lg font-semibold">Order Summary</h2>
+                </div>
+
+                {!pricing ? (
+                  <p className="text-sm text-gray-500">Loading order summary…</p>
+                ) : (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Items ({cart?.items?.length || 0})</span>
+                      <span>₹{pricing?.subtotal ?? 0}</span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span>Shipping</span>
+                      <span>
+                        {pricing?.shipping === 0
+                          ? <Badge className="bg-green-600">Free</Badge>
+                          : `₹${pricing?.shipping ?? 0}`}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span>Coupon</span>
+                      <span className={pricing?.couponDiscount ? "text-green-600 font-medium" : ""}>
+                        −₹{pricing?.couponDiscount ?? 0}
+                      </span>
+                    </div>
+
+                    {gst.addGst && (
+                      <div className="text-xs text-gray-600">
+                        GST Invoice: <span className="font-medium">{gst.businessName}</span> • GSTIN {gst.gstin}
+                      </div>
+                    )}
+
+                    <Separator className="my-2" />
+
+                    <div className="flex justify-between font-semibold text-base">
+                      <span>Total</span>
+                      <span>₹{pricing?.total ?? 0}</span>
+                    </div>
+                    <div className="text-xs text-gray-500">Inclusive of all taxes.</div>
                   </div>
                 )}
-              </div>
-            </section>
-          </div>
 
-          {/* RIGHT: Order Summary */}
-          <aside className="space-y-4">
-            <section className="rounded-2xl border p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Package className="h-5 w-5 text-green-600" />
-                <h2 className="text-lg font-semibold">Order Summary</h2>
-              </div>
-
-              {!pricing ? (
-                <p className="text-sm text-gray-500">Loading order summary…</p>
-              ) : (
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Items ({cart?.items?.length || 0})</span>
-                    <span>₹{pricing?.subtotal ?? 0}</span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span>Shipping</span>
-                    <span>
-                      {pricing?.shipping === 0
-                        ? <Badge className="bg-green-600">Free</Badge>
-                        : `₹${pricing?.shipping ?? 0}`}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span>Coupon</span>
-                    <span className={pricing?.couponDiscount ? "text-green-600 font-medium" : ""}>
-                      −₹{pricing?.couponDiscount ?? 0}
-                    </span>
-                  </div>
-
-                  {gst.addGst && (
-                    <div className="text-xs text-gray-600">
-                      GST Invoice: <span className="font-medium">{gst.businessName}</span> • GSTIN {gst.gstin}
-                    </div>
-                  )}
-
-                  <Separator className="my-2" />
-
-                  <div className="flex justify-between font-semibold text-base">
-                    <span>Total</span>
-                    <span>₹{pricing?.total ?? 0}</span>
-                  </div>
-                  <div className="text-xs text-gray-500">Inclusive of all taxes.</div>
+                {/* coupon */}
+                <div className="mt-4 flex gap-2">
+                  <Input
+                    placeholder="Have a coupon?"
+                    value={coupon}
+                    onChange={(e) => setCoupon(e.target.value)}
+                    disabled={couponApplying}
+                  />
+                  <Button onClick={applyCoupon} disabled={couponApplying}>
+                    {couponApplying ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Percent className="h-4 w-4 mr-1" />
+                        Apply
+                      </>
+                    )}
+                  </Button>
                 </div>
-              )}
+                {couponMeta?.message && (
+                  <p className="text-xs text-green-600 mt-2">{couponMeta.message}</p>
+                )}
+              </section>
 
-              {/* coupon */}
-              <div className="mt-4 flex gap-2">
-                <Input
-                  placeholder="Have a coupon?"
-                  value={coupon}
-                  onChange={(e) => setCoupon(e.target.value)}
-                  disabled={couponApplying}
-                />
-                <Button onClick={applyCoupon} disabled={couponApplying}>
-                  {couponApplying ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Percent className="h-4 w-4 mr-1" />
-                      Apply
-                    </>
-                  )}
-                </Button>
+              <Button
+                className="w-full h-12 text-base font-semibold"
+                onClick={handlePlaceOrder}
+                disabled={placing || !pricing}
+              >
+                {placing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…
+                  </>
+                ) : (
+                  payCta
+                )}
+              </Button>
+
+              <div className="rounded-2xl border p-4 text-sm text-gray-600">
+                <div className="flex items-center gap-2 mb-2">
+                  <Gift className="h-4 w-4" /> <span>Returns & Support</span>
+                </div>
+                <ul className="list-disc ml-5 space-y-1">
+                  <li>Easy replacements for damaged products.</li>
+                  <li>Support via email within 24–48 hrs.</li>
+                  <li>GST invoice available for businesses.</li>
+                </ul>
               </div>
-              {couponMeta?.message && (
-                <p className="text-xs text-green-600 mt-2">{couponMeta.message}</p>
-              )}
-            </section>
-
-            <Button
-              className="w-full h-12 text-base font-semibold"
-              onClick={handlePlaceOrder}
-              disabled={placing || !pricing}
-            >
-              {placing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…
-                </>
-              ) : (
-                payCta
-              )}
-            </Button>
-
-            <div className="rounded-2xl border p-4 text-sm text-gray-600">
-              <div className="flex items-center gap-2 mb-2">
-                <Gift className="h-4 w-4" /> <span>Returns & Support</span>
-              </div>
-              <ul className="list-disc ml-5 space-y-1">
-                <li>Easy replacements for damaged products.</li>
-                <li>Support via email within 24–48 hrs.</li>
-                <li>GST invoice available for businesses.</li>
-              </ul>
-            </div>
-          </aside>
-
-        </div>
+            </aside>
+          </div>
+        )}
 
         {/* Back to cart */}
-        <div className="mt-6 text-sm">
-          <Link to="/cart" className="text-green-700 hover:underline">
-            ← Back to Cart
-          </Link>
-        </div>
+        {!showEmpty && !loading && (
+          <div className="mt-6 text-sm">
+            <Link to="/cart" className="text-green-700 hover:underline">
+              ← Back to Cart
+            </Link>
+          </div>
+        )}
       </div>
       <Footer />
     </>

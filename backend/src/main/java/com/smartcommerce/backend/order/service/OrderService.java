@@ -24,6 +24,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.smartcommerce.backend.order.entity.Payment.PaymentStatus.REFUNDED;
+
 @Service
 public class OrderService {
 
@@ -162,41 +164,39 @@ public class OrderService {
     }
 
     @Transactional
-    public void cancelOrder(Long orderId, String userEmail) {
+    public Order cancelOrder(Long orderId, String userEmail) {
         Order order = orderRepo.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        // Ownership
         if (!order.getUser().getEmail().equals(userEmail)) {
             throw new AccessDeniedException("Not your order");
         }
 
-        // Idempotency / disallowed states
-        if (order.getStatus() == Order.OrderStatus.CANCELLED) {
-            return; // already cancelled, nothing to do
+        if (order.getStatus() == Order.OrderStatus.CANCELLED
+                || order.getStatus() == Order.OrderStatus.REFUNDED) {
+            return order;
         }
         if (order.getStatus() == Order.OrderStatus.DELIVERED) {
             throw new RuntimeException("Order cannot be cancelled after delivery");
         }
 
-        // 1) Mark order cancelled
         order.setStatus(Order.OrderStatus.CANCELLED);
         order.setUpdatedAt(Instant.now());
         orderRepo.save(order);
 
-        // 2) If there is a captured online payment, initiate refund
         paymentRepo.findByOrder_Id(orderId).ifPresent(payment -> {
             boolean isCaptured = payment.getStatus() == Payment.PaymentStatus.CAPTURED;
             boolean hasPaymentId = payment.getRazorpayPaymentId() != null && !payment.getRazorpayPaymentId().isBlank();
 
             if (isCaptured && hasPaymentId) {
-                // Delegate to PaymentService (calls Razorpay Refund API and persists refundId/status/amount)
+                order.setStatus(Order.OrderStatus.REFUND_PENDING);
+                orderRepo.save(order);
                 paymentService.initiateRefund(order, payment);
             }
-            // If not captured (CREATED/ATTEMPTED/FAILED) or COD → no refund needed
         });
-    }
 
+        return order;  // 🔥 return latest state
+    }
 
     public List<Order> getOrdersByUser(User user) {
         return orderRepo.findByUser_Id(user.getId());

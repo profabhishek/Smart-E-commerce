@@ -149,7 +149,6 @@ export default function ProductPage() {
     }
   };
 
-
 const buyNow = async () => {
   if (!product?.id) return;
   if (!inStock) return toast.error("Out of stock");
@@ -157,13 +156,15 @@ const buyNow = async () => {
   const qty = clamp(quantity, 1, product.stock || 1);
 
   try {
-    const url = `${API_BASE}/api/cart/${encodeURIComponent(userId)}/update?productId=${product.id}&quantity=${qty}`;
-    const res = await callWithAuth(url, { method: "PUT" });
-    if (!res.ok) throw new Error("Unable to set cart quantity");
+    // ✅ Always add with the selected quantity
+    const url = `${API_BASE}/api/cart/${encodeURIComponent(userId)}/add?productId=${product.id}&quantity=${qty}`;
+    const res = await callWithAuth(url, { method: "POST" });
+    if (!res.ok) throw new Error("Unable to add to cart for checkout");
 
     await res.json().catch(() => null);
-    fetchCartCount();
+    fetchCartCount(); // refresh badge
 
+    // ✅ Go to checkout directly
     navigate("/checkout");
   } catch (e) {
     toast.error(e.message || "Unable to proceed to checkout");
