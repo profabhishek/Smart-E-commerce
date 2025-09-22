@@ -17,7 +17,7 @@ public class ProductPhoto {
     // Column stays photo_url in DB ✅
     @Column(nullable = false, name = "photo_url")
     @JsonProperty("url")  // 🔑 Expose as `url` in JSON response
-    private String photo_url;
+    private String photoUrl;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)

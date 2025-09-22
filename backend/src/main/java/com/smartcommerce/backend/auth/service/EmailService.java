@@ -17,7 +17,7 @@ import java.util.UUID;
 @Service
 public class EmailService {
 
-    @Value("${app.base.url}")
+    @Value("${app.base-url-frontend}")
     private String baseUrl;
 
 

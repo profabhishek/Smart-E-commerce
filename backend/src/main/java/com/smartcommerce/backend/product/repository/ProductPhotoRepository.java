@@ -7,10 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface ProductPhotoRepository extends JpaRepository<ProductPhoto, Long> {
-
-    // 🔍 Get all photos for a product
-    List<ProductPhoto> findByProduct(Product product);
-
-    // 🔍 Delete all photos for a product
+    List<ProductPhoto> findByProduct_Id(Long productId);
     void deleteByProduct(Product product);
 }

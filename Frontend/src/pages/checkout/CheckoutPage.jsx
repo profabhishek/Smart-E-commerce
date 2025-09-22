@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton"; // ✅ NEW
 import {
   Loader2,
   BadgeIndianRupee,
@@ -25,27 +26,32 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
 
   const BASE_URL = import.meta.env.VITE_API_BASE_URL;
-  const userId = localStorage.getItem("user_id") || "guest";
+  const userId = localStorage.getItem("user_id");
   const token = localStorage.getItem("user_token");
 
   // ---------- state ----------
-  const [cart, setCart] = useState(null); // { items: [], totalAmount, originalTotalAmount, totalSavings }
+  const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
 
-  // addresses
   const [addresses, setAddresses] = useState([]);
   const [selectedAddressIndex, setSelectedAddressIndex] = useState(0);
+
+  if (!userId) {
+    navigate("/login");
+    return null;
+  }
 
   const [address, setAddress] = useState({
     fullName: "",
     phone: "",
-    pincode: "",
-    addressLine1: "",
-    addressLine2: "",
+    houseNo: "",
+    area: "",
+    landmark: "",
     city: "",
     state: "",
-    landmark: "",
+    country: "India",
+    pinCode: "",
     type: "home",
   });
 
@@ -53,13 +59,23 @@ export default function CheckoutPage() {
   const [whatsappUpdates, setWhatsappUpdates] = useState(true);
   const [gst, setGst] = useState({ addGst: false, gstin: "", businessName: "" });
 
-  // coupons
   const [coupon, setCoupon] = useState("");
   const [couponApplying, setCouponApplying] = useState(false);
-  const [couponMeta, setCouponMeta] = useState(null); // { code, discountAmount, message }
+  const [couponMeta, setCouponMeta] = useState(null);
 
-  // optional: razorpay loader ref if you wire payments later
   const razorLoadedRef = useRef(false);
+
+  // ---------- load Razorpay script ----------
+  useEffect(() => {
+    if (razorLoadedRef.current) return;
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => {
+      razorLoadedRef.current = true;
+    };
+    document.body.appendChild(script);
+  }, []);
 
   // ---------- fetch cart ----------
   useEffect(() => {
@@ -75,14 +91,29 @@ export default function CheckoutPage() {
       } catch (e) {
         console.error(e);
         toast.error("Could not load your cart.");
-        navigate("/cart");
+        // Don't navigate away; show empty state instead
+        setCart({ items: [] });
       } finally {
         setLoading(false);
       }
     })();
   }, [userId]);
 
-  // ---------- fetch user & prefill address ----------
+  // ---------- fetch user profile --------
+  const mapBackendAddress = (addr) => {
+    if (!addr) return {};
+    return {
+      houseNo: addr.houseNo || "",
+      area: addr.area || "",
+      landmark: addr.landmark || "",
+      city: addr.city || "",
+      state: addr.state || "",
+      country: addr.country || "India",
+      pinCode: addr.pinCode || "",
+      type: "home",
+    };
+  };
+
   useEffect(() => {
     if (!token) return;
     (async () => {
@@ -96,7 +127,6 @@ export default function CheckoutPage() {
         const addrs = Array.isArray(data.addresses) ? data.addresses : [];
         setAddresses(addrs);
 
-        // Prefill top section
         setAddress((prev) => ({
           ...prev,
           fullName: data.name || "",
@@ -109,21 +139,6 @@ export default function CheckoutPage() {
     })();
   }, [token]);
 
-  // Map backend address to UI state shape
-  const mapBackendAddress = (addr) => {
-    if (!addr) return {};
-    return {
-      pincode: addr.pinCode || "",
-      addressLine1: [addr.houseNo, addr.area].filter(Boolean).join(", "),
-      addressLine2: addr.landmark || "",
-      city: addr.city || "",
-      state: addr.state || "",
-      landmark: addr.landmark || "",
-      type: "home",
-    };
-  };
-
-  // When user switches the saved address
   useEffect(() => {
     if (!addresses.length) return;
     setAddress((prev) => ({
@@ -131,28 +146,6 @@ export default function CheckoutPage() {
       ...mapBackendAddress(addresses[selectedAddressIndex]),
     }));
   }, [selectedAddressIndex, addresses]);
-
-  // ---------- optional: pincode -> city/state lookup ----------
-  useEffect(() => {
-    const lookup = async () => {
-      const pin = (address.pincode || "").trim();
-      if (pin.length !== 6) return;
-      try {
-        const r = await fetch(`${BASE_URL}/api/common/pincode/${pin}`);
-        if (r.ok) {
-          const data = await r.json(); // { city, state }
-          setAddress((prev) => ({
-            ...prev,
-            city: data.city || prev.city,
-            state: data.state || prev.state,
-          }));
-        }
-      } catch {
-        // ignore
-      }
-    };
-    lookup();
-  }, [address.pincode]);
 
   // ---------- totals ----------
   const pricing = useMemo(() => {
@@ -170,31 +163,229 @@ export default function CheckoutPage() {
 
   // ---------- validation ----------
   const isValidPhone = (p) => /^[6-9]\d{9}$/.test(p);
-  const isValidPincode = (p) => /^\d{6}$/.test(p);
-  const isValidGstin = (g) =>
-    /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test((g || "").trim());
+  const isValidPin = (p) => /^\d{6}$/.test(p);
+  const isValidGstin = (g) => /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(g); // ✅ quick check
 
   const validateForm = () => {
     if (!address.fullName.trim()) return "Please enter full name.";
     if (!isValidPhone(address.phone)) return "Enter a valid 10-digit mobile number.";
-    if (!isValidPincode(address.pincode)) return "Enter a valid 6-digit pincode.";
-    if (!address.addressLine1.trim()) return "Address line is required.";
-    if (!address.city.trim() || !address.state.trim()) return "City and State are required.";
+    if (!isValidPin(address.pinCode)) return "Enter a valid 6-digit pin code.";
+    if (!address.houseNo.trim() && !address.area.trim())
+      return "Please enter House No. or Area.";
+    if (!address.city.trim() || !address.state.trim())
+      return "City and State are required.";
     if (gst.addGst) {
       if (!isValidGstin(gst.gstin)) return "Enter a valid GSTIN.";
-      if (!gst.businessName.trim()) return "Business name is required for GST invoice.";
+      if (!gst.businessName.trim())
+        return "Business name is required for GST invoice.";
     }
     return null;
   };
 
-  // ---------- coupon ----------
-  const applyCoupon = async () => {
-    if (!coupon.trim()) {
-      setCouponMeta(null);
-      return;
+  async function clearCartAfterPayment() {
+    if (cart?.items?.length) {
+      for (const cartItem of cart.items) {
+        await fetch(`${BASE_URL}/api/cart/${userId}/remove?productId=${cartItem.productId}`, {
+          method: "DELETE",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+      }
     }
+    localStorage.removeItem("cart");
+    setCart(null);
+  }
+
+  // ---------- place order ----------
+  const handlePlaceOrder = async () => {
+    if (!cart || !pricing) return;
+    const err = validateForm();
+    if (err) return toast.error(err);
+
+    setPlacing(true);
+
     try {
-      setCouponApplying(true);
+      // 1. Create draft order in backend
+      const draftRes = await fetch(`${BASE_URL}/api/checkout/create-draft`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          customerName: address.fullName,
+          phone: address.phone,
+          address: {
+            houseNo: address.houseNo,
+            area: address.area,
+            landmark: address.landmark,
+            city: address.city,
+            state: address.state,
+            country: address.country,
+            pinCode: address.pinCode,
+            type: address.type,
+          },
+          gst,
+          couponCode: coupon,
+          paymentMethod,
+        }),
+      });
+
+      if (!draftRes.ok) throw new Error("Could not create order draft");
+      const order = await draftRes.json();
+
+      if (paymentMethod === "cod") {
+        // COD → confirm immediately
+        await fetch(`${BASE_URL}/api/checkout/confirm-cod/${order.id}`, {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        if (cart?.items?.length) {
+          for (const cartItem of cart.items) {
+            await fetch(`${BASE_URL}/api/cart/${userId}/remove?productId=${cartItem.productId}`, {
+              method: "DELETE",
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+          }
+        }
+
+        // clear frontend cart too
+        localStorage.removeItem("cart");
+        setCart(null);
+
+        toast.success("Order placed (COD)!");
+        navigate(`/order-details?orderId=${order.id}`, { state: { orderId: order.id } });
+        return;
+      }
+
+      // Online payment → create Razorpay order
+      const rzpRes = await fetch(`${BASE_URL}/api/checkout/create-razorpay-order/${order.id}`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!rzpRes.ok) throw new Error("Could not create Razorpay order");
+      const rzpData = await rzpRes.json();
+
+      const options = {
+        key: rzpData.key,
+        amount: rzpData.amount,
+        currency: rzpData.currency,
+        order_id: rzpData.orderId,
+        name: "SmartCommerce",
+        description: "Order Payment",
+        method: {
+          upi: paymentMethod === "upi" ? "1" : "0",
+          card: paymentMethod === "card" ? "1" : "0",
+          netbanking: paymentMethod === "netbanking" ? "1" : "0",
+        },
+        handler: async function (response) {
+          try {
+            const res = await fetch(`${BASE_URL}/api/checkout/confirm-payment`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                orderId: order.id,
+                razorpayOrderId: response?.razorpay_order_id,
+                razorpayPaymentId: response?.razorpay_payment_id,
+                razorpaySignature: response?.razorpay_signature,
+              }),
+            });
+
+            if (res.ok) {
+              await clearCartAfterPayment();
+              toast.success("Payment successful!");
+              setTimeout(() => {
+                navigate(`/order-details?orderId=${order.id}`, { state: { orderId: order.id } });
+              }, 500);
+              return;
+            }
+
+            // fallback: poll order status up to 3 times
+            for (let i = 0; i < 3; i++) {
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+              const poll = await fetch(`${BASE_URL}/api/orders/${order.id}/status`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+              });
+              if (poll.ok) {
+                const status = await poll.text();
+                if (status === "PAID") {
+                  await clearCartAfterPayment();
+                  toast.success("Payment successful!");
+                  setTimeout(() => {
+                    navigate(`/order-details?orderId=${order.id}`, { state: { orderId: order.id } });
+                  }, 500);
+                  return;
+                } else if (status === "FAILED") {
+                  break;
+                }
+              }
+            }
+
+            toast.error("Payment could not be confirmed. Please contact support.");
+          } catch (err) {
+            console.error("Payment confirmation error:", err);
+            try {
+              const poll = await fetch(`${BASE_URL}/api/orders/${order.id}/status`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+              });
+              if (poll.ok) {
+                const status = await poll.text();
+                if (status === "PAID") {
+                  await clearCartAfterPayment();
+                  toast.success("Payment successful!");
+                  setTimeout(() => {
+                    navigate(`/order-details?orderId=${order.id}`, { state: { orderId: order.id } });
+                  }, 500);
+                  return;
+                }
+              }
+            } catch {}
+            toast.error("Could not confirm payment. Please try again.");
+          }
+        },
+        modal: {
+          ondismiss: async function () {
+            await fetch(`${BASE_URL}/api/checkout/payment-failed`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                orderId: order.id,
+                reason: "Payment window closed by user",
+              }),
+            });
+            toast.error("Payment was cancelled.");
+          },
+        },
+        theme: { color: "#3399cc" },
+      };
+
+      if (!window.Razorpay) {
+        alert("Razorpay SDK not loaded");
+        return;
+      }
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not place order");
+    } finally {
+      setPlacing(false);
+    }
+  };
+
+  // ---------- apply coupon ----------
+  const applyCoupon = async () => {
+    if (!coupon.trim()) return toast.error("Please enter a coupon code");
+
+    setCouponApplying(true);
+    try {
       const res = await fetch(`${BASE_URL}/api/coupons/apply`, {
         method: "POST",
         headers: {
@@ -202,73 +393,25 @@ export default function CheckoutPage() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          code: coupon.trim(),
-          amount: cart?.totalAmount ?? 0,
-          items:
-            cart?.items?.map((i) => ({
-              productId: i.productId,
-              qty: i.quantity,
-            })) ?? [],
+          couponCode: coupon.trim(),
         }),
       });
+
       const data = await res.json();
-      if (!res.ok) {
-        setCouponMeta(null);
-        toast.error(data?.message || "Coupon not applicable");
-      } else {
-        setCouponMeta({
-          code: coupon.trim(),
-          discountAmount: Number(data.discountAmount || 0),
-          message: data?.message,
-        });
-        toast.success(data?.message || "Coupon applied");
-      }
-    } catch (e) {
-      console.error(e);
-      toast.error("Could not apply coupon");
+      if (!res.ok) throw new Error(data.message || "Invalid coupon");
+
+      setCouponMeta(data); // e.g. { discountAmount, message }
+      toast.success(data.message || "Coupon applied!");
+    } catch (err) {
+      console.error("Coupon error:", err);
+      toast.error(err.message || "Could not apply coupon");
+      setCouponMeta(null);
     } finally {
       setCouponApplying(false);
     }
   };
 
-  // ---------- place order (UI only; plug into your backend/Razorpay) ----------
-  const handlePlaceOrder = async () => {
-    if (!cart || !pricing) return;
-    const err = validateForm();
-    if (err) return toast.error(err);
-
-    // TODO: Wire with your existing /api/checkout/create-order + Razorpay flow.
-    // For now just simulate:
-    setPlacing(true);
-    setTimeout(() => {
-      setPlacing(false);
-      toast.success(
-        paymentMethod === "cod" ? "Order placed (COD)!" : "Payment initiated!"
-      );
-      navigate("/order-success");
-    }, 900);
-  };
-
-  // ---------- UI: loading ----------
-  if (loading || !cart || !pricing) {
-    return (
-      <>
-        <Header />
-        <div className="container max-w-6xl mx-auto px-4 py-10">
-          <div className="animate-pulse grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-4">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-28 bg-gray-200 rounded-xl" />
-              ))}
-            </div>
-            <div className="h-60 bg-gray-200 rounded-xl" />
-          </div>
-        </div>
-        <Footer />
-      </>
-    );
-  }
-
+  // ---------- derived ----------
   const payCta =
     paymentMethod === "upi"
       ? "Pay via UPI"
@@ -277,6 +420,138 @@ export default function CheckoutPage() {
       : paymentMethod === "netbanking"
       ? "Pay via Netbanking"
       : "Place Order (COD)";
+
+  // ---------- skeletons ----------
+  const CheckoutSkeleton = () => (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="lg:col-span-2 space-y-8">
+        {/* Address card skeleton */}
+        <section className="rounded-2xl border p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="h-5 w-40" />
+          </div>
+          <div className="space-y-4">
+            {/* saved addresses radio */}
+            <div className="space-y-3">
+              {[0, 1].map((i) => (
+                <div key={i} className="flex items-start gap-3 rounded-xl p-3 border">
+                  <Skeleton className="h-4 w-4 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-72" />
+                    <Skeleton className="h-3 w-48" />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* form grid */}
+            <div className="grid sm:grid-cols-2 gap-4">
+              {Array.from({ length: 10 }).map((_, idx) => (
+                <div key={idx} className={idx >= 8 ? "sm:col-span-2" : ""}>
+                  <Skeleton className="h-4 w-24 mb-2" />
+                  <Skeleton className="h-10 w-full rounded-md" />
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 flex items-center gap-2">
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-4 w-56" />
+            </div>
+          </div>
+        </section>
+
+        {/* Payment card skeleton */}
+        <section className="rounded-2xl border p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="h-5 w-24" />
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex items-center gap-3 rounded-xl border p-3">
+                <Skeleton className="h-4 w-4 rounded-full" />
+                <div className="space-y-1">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Separator className="my-4" />
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-4 w-48" />
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <Skeleton className="h-4 w-20 mb-2" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div>
+                <Skeleton className="h-4 w-28 mb-2" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* Right column skeleton */}
+      <aside className="space-y-4">
+        <section className="rounded-2xl border p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="h-5 w-32" />
+          </div>
+
+          <div className="space-y-2 text-sm">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex justify-between items-center">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+            ))}
+            <Separator className="my-2" />
+            <div className="flex justify-between items-center">
+              <Skeleton className="h-5 w-16" />
+              <Skeleton className="h-5 w-20" />
+            </div>
+            <Skeleton className="h-3 w-40 mt-1" />
+          </div>
+
+          <div className="mt-4 flex gap-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-20" />
+          </div>
+          <Skeleton className="h-3 w-48 mt-2" />
+        </section>
+
+        <Skeleton className="h-12 w-full rounded-md" />
+
+        <div className="rounded-2xl border p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Skeleton className="h-4 w-4 rounded-full" />
+            <Skeleton className="h-4 w-28" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-56" />
+            <Skeleton className="h-3 w-64" />
+            <Skeleton className="h-3 w-48" />
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+
+  // ---------- empty cart UI ----------
+  const showEmpty = !loading && (!cart || !Array.isArray(cart.items) || cart.items.length === 0);
 
   return (
     <>
@@ -287,328 +562,373 @@ export default function CheckoutPage() {
           <span className="text-sm">Secure Checkout • UPI / Cards / Netbanking / COD</span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* LEFT: Address + Payment + GST */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Address */}
-            <section className="rounded-2xl border p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <MapPin className="h-5 w-5 text-green-600" />
-                <h2 className="text-lg font-semibold">Delivery Address</h2>
-              </div>
+        {/* Empty Cart State */}
+        {showEmpty ? (
+          <div className="rounded-2xl border p-10 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border">
+              <Package className="h-6 w-6" />
+            </div>
+            <h2 className="text-xl font-semibold">Your cart is empty</h2>
+            <p className="text-sm text-gray-600 mt-1">Add some posters to continue to checkout.</p>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <Link to="/">
+                <Button>Browse Posters</Button>
+              </Link>
+              <Link to="/cart" className="text-green-700 text-sm hover:underline">
+                View Cart
+              </Link>
+            </div>
+          </div>
+        ) : loading ? (
+          // Skeleton while fetching data
+          <CheckoutSkeleton />
+        ) : (
+          // Main content
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* LEFT: Address + Payment + GST */}
+            <div className="lg:col-span-2 space-y-8">
+              {/* Address */}
+              <section className="rounded-2xl border p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <MapPin className="h-5 w-5 text-green-600" />
+                  <h2 className="text-lg font-semibold">Delivery Address</h2>
+                </div>
 
-              {/* Saved address selector */}
-              {addresses.length > 0 && (
-                <RadioGroup
-                  value={String(selectedAddressIndex)}
-                  onValueChange={(val) => setSelectedAddressIndex(Number(val))}
-                  className="space-y-3 mb-4"
-                >
-                  {addresses.map((addr, i) => (
-                    <label
-                      key={addr.id || i}
-                      className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer ${
-                        selectedAddressIndex === i ? "border-green-600 bg-green-50" : "border-gray-200"
-                      }`}
-                    >
-                      <RadioGroupItem value={String(i)} />
-                      <div>
-                        <p className="font-medium">{address.fullName || "Saved Address"}</p>
-                        <p className="text-sm text-gray-600">
-                          {[addr.houseNo, addr.area, addr.city, addr.state].filter(Boolean).join(", ")}{" "}
-                          - {addr.pinCode}
-                        </p>
-                        <p className="text-xs text-gray-500">📞 {address.phone || "-"}</p>
-                      </div>
-                    </label>
-                  ))}
-                </RadioGroup>
-              )}
+                {/* Saved address selector */}
+                {addresses.length > 0 && (
+                  <RadioGroup
+                    value={String(selectedAddressIndex)}
+                    onValueChange={(val) => setSelectedAddressIndex(Number(val))}
+                    className="space-y-3 mb-4"
+                  >
+                    {addresses.map((addr, i) => (
+                      <label
+                        key={addr.id || i}
+                        className={`flex items-start gap-3 rounded-xl p-3 border cursor-pointer ${
+                          selectedAddressIndex === i ? "border-green-600 bg-green-50" : "border-gray-200"
+                        }`}
+                      >
+                        <RadioGroupItem value={String(i)} />
+                        <div>
+                          <p className="font-medium">{address.fullName || "Saved Address"}</p>
+                          <p className="text-sm text-gray-600">
+                            {[addr.houseNo, addr.area, addr.city, addr.state].filter(Boolean).join(", ")}{" "}
+                            - {addr.pinCode}
+                          </p>
+                          <p className="text-xs text-gray-500">📞 {address.phone || "-"}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </RadioGroup>
+                )}
 
-              {/* Editable form (prefilled) */}
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <Label>Full Name</Label>
-                  <Input
-                    value={address.fullName}
-                    onChange={(e) => setAddress({ ...address, fullName: e.target.value })}
-                    placeholder="e.g. Abhishek Jha"
-                  />
-                </div>
-                <div>
-                  <Label>Phone (10-digit)</Label>
-                  <Input
-                    value={address.phone}
-                    onChange={(e) =>
-                      setAddress({ ...address, phone: e.target.value.replace(/\D/g, "") })
-                    }
-                    maxLength={10}
-                    placeholder="98xxxxxxxx"
-                  />
-                </div>
-                <div>
-                  <Label>Pincode</Label>
-                  <Input
-                    value={address.pincode}
-                    onChange={(e) =>
-                      setAddress({ ...address, pincode: e.target.value.replace(/\D/g, "") })
-                    }
-                    maxLength={6}
-                    placeholder="110059"
-                  />
-                </div>
-                <div>
-                  <Label>Address Type</Label>
-                  <Select value={address.type} onValueChange={(v) => setAddress({ ...address, type: v })}>
-                    <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="home">Home</SelectItem>
-                      <SelectItem value="work">Work</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Address Line</Label>
-                  <Input
-                    value={address.addressLine1}
-                    onChange={(e) => setAddress({ ...address, addressLine1: e.target.value })}
-                    placeholder="House/Flat, Street, Area"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Address Line 2 (optional)</Label>
-                  <Input
-                    value={address.addressLine2}
-                    onChange={(e) => setAddress({ ...address, addressLine2: e.target.value })}
-                    placeholder="Apartment / Landmark"
-                  />
-                </div>
-                <div>
-                  <Label>City</Label>
-                  <Input
-                    value={address.city}
-                    onChange={(e) => setAddress({ ...address, city: e.target.value })}
-                    placeholder="New Delhi"
-                  />
-                </div>
-                <div>
-                  <Label>State</Label>
-                  <Input
-                    value={address.state}
-                    onChange={(e) => setAddress({ ...address, state: e.target.value })}
-                    placeholder="Delhi"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-3 flex items-center gap-2">
-                <input
-                  id="whatsapp"
-                  type="checkbox"
-                  checked={whatsappUpdates}
-                  onChange={(e) => setWhatsappUpdates(e.target.checked)}
-                  className="h-4 w-4"
-                />
-                <Label htmlFor="whatsapp" className="flex items-center gap-1 cursor-pointer">
-                  <Smartphone className="h-4 w-4" /> Get order updates on WhatsApp
-                </Label>
-              </div>
-            </section>
-
-            {/* Payment */}
-            <section className="rounded-2xl border p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <BadgeIndianRupee className="h-5 w-5 text-green-600" />
-                <h2 className="text-lg font-semibold">Payment</h2>
-              </div>
-
-              <RadioGroup
-                value={paymentMethod}
-                onValueChange={setPaymentMethod}
-                className="grid sm:grid-cols-2 gap-3"
-              >
-                <label className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer">
-                  <RadioGroupItem value="upi" />
+                {/* Editable form (prefilled) */}
+                <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <div className="font-medium">UPI</div>
-                    <div className="text-sm text-gray-500">GPay / PhonePe / Paytm UPI</div>
+                    <Label>Full Name</Label>
+                    <Input
+                      value={address.fullName}
+                      onChange={(e) => setAddress({ ...address, fullName: e.target.value })}
+                      placeholder="e.g. Abhishek Jha"
+                      className="mt-2"
+                    />
                   </div>
-                </label>
-
-                <label className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer">
-                  <RadioGroupItem value="card" />
                   <div>
-                    <div className="font-medium">Cards</div>
-                    <div className="text-sm text-gray-500">Visa / Mastercard / Rupay</div>
+                    <Label>Phone (10-digit)</Label>
+                    <Input
+                      value={address.phone}
+                      onChange={(e) => setAddress({ ...address, phone: e.target.value.replace(/\D/g, "") })}
+                      maxLength={10}
+                      placeholder="98xxxxxxxx"
+                      className="mt-2"
+                    />
                   </div>
-                </label>
 
-                <label className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer">
-                  <RadioGroupItem value="netbanking" />
                   <div>
-                    <div className="font-medium">Netbanking</div>
-                    <div className="text-sm text-gray-500">All major banks</div>
+                    <Label>House No.</Label>
+                    <Input
+                      value={address.houseNo}
+                      onChange={(e) => setAddress({ ...address, houseNo: e.target.value })}
+                      placeholder="123"
+                      className="mt-2"
+                    />
                   </div>
-                </label>
-
-                <label className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer">
-                  <RadioGroupItem value="cod" />
                   <div>
-                    <div className="font-medium">Cash on Delivery</div>
-                    <div className="text-sm text-gray-500">+₹30 COD fee</div>
+                    <Label>Area</Label>
+                    <Input
+                      value={address.area}
+                      onChange={(e) => setAddress({ ...address, area: e.target.value })}
+                      placeholder="Street / Colony"
+                      className="mt-2"
+                    />
                   </div>
-                </label>
-              </RadioGroup>
 
-              <Separator className="my-4" />
+                  <div className="sm:col-span-2">
+                    <Label>Landmark</Label>
+                    <Input
+                      value={address.landmark}
+                      onChange={(e) => setAddress({ ...address, landmark: e.target.value })}
+                      placeholder="Near park, mall..."
+                      className="mt-2"
+                    />
+                  </div>
 
-              {/* GST Invoice */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
+                  <div>
+                    <Label>City</Label>
+                    <Input
+                      value={address.city}
+                      onChange={(e) => setAddress({ ...address, city: e.target.value })}
+                      placeholder="City"
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label>Pin Code</Label>
+                    <Input
+                      value={address.pinCode}
+                      onChange={(e) => setAddress({ ...address, pinCode: e.target.value.replace(/\D/g, "") })}
+                      maxLength={6}
+                      placeholder="110001"
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Country</Label>
+                    <Input
+                      value={address.country}
+                      onChange={(e) => setAddress({ ...address, country: e.target.value })}
+                      placeholder="India"
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label className="mb-2">State</Label>
+                    <Input
+                      value={address.state}
+                      onChange={(e) => setAddress({ ...address, state: e.target.value })}
+                      placeholder="Delhi"
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <Label className="mb-2">Address Type</Label>
+                    <Select value={address.type} onValueChange={(v) => setAddress({ ...address, type: v })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent side="bottom" sideOffset={8}>
+                        <SelectItem value="home">Home</SelectItem>
+                        <SelectItem value="work">Work</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-2">
                   <input
-                    id="gst"
+                    id="whatsapp"
                     type="checkbox"
-                    checked={gst.addGst}
-                    onChange={(e) => setGst((prev) => ({ ...prev, addGst: e.target.checked }))}
+                    checked={whatsappUpdates}
+                    onChange={(e) => setWhatsappUpdates(e.target.checked)}
                     className="h-4 w-4"
                   />
-                  <Label htmlFor="gst" className="cursor-pointer">Add GST invoice (optional)</Label>
+                  <Label htmlFor="whatsapp" className="flex items-center gap-1 cursor-pointer">
+                    <Smartphone className="h-4 w-4" /> Get order updates on WhatsApp
+                  </Label>
                 </div>
-                {gst.addGst && (
-                  <div className="grid sm:grid-cols-2 gap-3">
+              </section>
+
+              {/* Payment */}
+              <section className="rounded-2xl border p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <BadgeIndianRupee className="h-5 w-5 text-green-600" />
+                  <h2 className="text-lg font-semibold">Payment</h2>
+                </div>
+
+                <RadioGroup
+                  value={paymentMethod}
+                  onValueChange={setPaymentMethod}
+                  className="grid sm:grid-cols-2 gap-3"
+                >
+                  <label className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer">
+                    <RadioGroupItem value="upi" />
                     <div>
-                      <Label>GSTIN</Label>
-                      <Input
-                        value={gst.gstin}
-                        onChange={(e) =>
-                          setGst((prev) => ({ ...prev, gstin: e.target.value.toUpperCase() }))
-                        }
-                        placeholder="22AAAAA0000A1Z5"
-                        maxLength={15}
-                      />
+                      <div className="font-medium">UPI</div>
+                      <div className="text-sm text-gray-500">GPay / PhonePe / Paytm UPI</div>
                     </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer">
+                    <RadioGroupItem value="card" />
                     <div>
-                      <Label>Business Name</Label>
-                      <Input
-                        value={gst.businessName}
-                        onChange={(e) =>
-                          setGst((prev) => ({ ...prev, businessName: e.target.value }))
-                        }
-                        placeholder="Your Company Pvt Ltd"
-                      />
+                      <div className="font-medium">Cards</div>
+                      <div className="text-sm text-gray-500">Visa / Mastercard / Rupay</div>
                     </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer">
+                    <RadioGroupItem value="netbanking" />
+                    <div>
+                      <div className="font-medium">Netbanking</div>
+                      <div className="text-sm text-gray-500">All major banks</div>
+                    </div>
+                  </label>
+                </RadioGroup>
+
+                <Separator className="my-4" />
+
+                {/* GST Invoice */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="gst"
+                      type="checkbox"
+                      checked={gst.addGst}
+                      onChange={(e) => setGst((prev) => ({ ...prev, addGst: e.target.checked }))}
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor="gst" className="cursor-pointer">Add GST invoice (optional)</Label>
                   </div>
-                )}
-              </div>
-            </section>
-          </div>
-
-          {/* RIGHT: Order Summary */}
-          <aside className="space-y-4">
-            <section className="rounded-2xl border p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Package className="h-5 w-5 text-green-600" />
-                <h2 className="text-lg font-semibold">Order Summary</h2>
-              </div>
-
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Items ({cart.items.length})</span>
-                  <span>₹{pricing.subtotal}</span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span>Shipping</span>
-                  <span>{pricing.shipping === 0 ? <Badge className="bg-green-600">Free</Badge> : `₹${pricing.shipping}`}</span>
-                </div>
-
-                {paymentMethod === "cod" && (
-                  <div className="flex justify-between">
-                    <span>COD Fee</span>
-                    <span>₹{pricing.codFee}</span>
-                  </div>
-                )}
-
-                <div className="flex justify-between">
-                  <span>Coupon</span>
-                  <span className={pricing.couponDiscount ? "text-green-600 font-medium" : ""}>
-                    −₹{pricing.couponDiscount}
-                  </span>
-                </div>
-
-                {gst.addGst && (
-                  <div className="text-xs text-gray-600">
-                    GST Invoice: <span className="font-medium">{gst.businessName}</span> • GSTIN {gst.gstin}
-                  </div>
-                )}
-
-                <Separator className="my-2" />
-
-                <div className="flex justify-between font-semibold text-base">
-                  <span>Total</span>
-                  <span>₹{pricing.total}</span>
-                </div>
-                <div className="text-xs text-gray-500">Inclusive of all taxes.</div>
-              </div>
-
-              {/* coupon */}
-              <div className="mt-4 flex gap-2">
-                <Input
-                  placeholder="Have a coupon?"
-                  value={coupon}
-                  onChange={(e) => setCoupon(e.target.value)}
-                  disabled={couponApplying}
-                />
-                <Button onClick={applyCoupon} disabled={couponApplying}>
-                  {couponApplying ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Percent className="h-4 w-4 mr-1" />
-                      Apply
-                    </>
+                  {gst.addGst && (
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div>
+                        <Label>GSTIN</Label>
+                        <Input
+                          value={gst.gstin}
+                          onChange={(e) =>
+                            setGst((prev) => ({ ...prev, gstin: e.target.value.toUpperCase() }))
+                          }
+                          placeholder="22AAAAA0000A1Z5"
+                          maxLength={15}
+                        />
+                      </div>
+                      <div>
+                        <Label>Business Name</Label>
+                        <Input
+                          value={gst.businessName}
+                          onChange={(e) =>
+                            setGst((prev) => ({ ...prev, businessName: e.target.value }))
+                          }
+                          placeholder="Your Company Pvt Ltd"
+                        />
+                      </div>
+                    </div>
                   )}
-                </Button>
-              </div>
-              {couponMeta?.message && (
-                <p className="text-xs text-green-600 mt-2">{couponMeta.message}</p>
-              )}
-            </section>
-
-            <Button
-              className="w-full h-12 text-base font-semibold"
-              onClick={handlePlaceOrder}
-              disabled={placing}
-            >
-              {placing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…
-                </>
-              ) : (
-                payCta
-              )}
-            </Button>
-
-            <div className="rounded-2xl border p-4 text-sm text-gray-600">
-              <div className="flex items-center gap-2 mb-2">
-                <Gift className="h-4 w-4" /> <span>Returns & Support</span>
-              </div>
-              <ul className="list-disc ml-5 space-y-1">
-                <li>Easy replacements for damaged products.</li>
-                <li>Support via email within 24–48 hrs.</li>
-                <li>GST invoice available for businesses.</li>
-              </ul>
+                </div>
+              </section>
             </div>
-          </aside>
-        </div>
+
+            {/* RIGHT: Order Summary */}
+            <aside className="space-y-4">
+              <section className="rounded-2xl border p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Package className="h-5 w-5 text-green-600" />
+                  <h2 className="text-lg font-semibold">Order Summary</h2>
+                </div>
+
+                {!pricing ? (
+                  <p className="text-sm text-gray-500">Loading order summary…</p>
+                ) : (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Items ({cart?.items?.length || 0})</span>
+                      <span>₹{pricing?.subtotal ?? 0}</span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span>Shipping</span>
+                      <span>
+                        {pricing?.shipping === 0
+                          ? <Badge className="bg-green-600">Free</Badge>
+                          : `₹${pricing?.shipping ?? 0}`}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span>Coupon</span>
+                      <span className={pricing?.couponDiscount ? "text-green-600 font-medium" : ""}>
+                        −₹{pricing?.couponDiscount ?? 0}
+                      </span>
+                    </div>
+
+                    {gst.addGst && (
+                      <div className="text-xs text-gray-600">
+                        GST Invoice: <span className="font-medium">{gst.businessName}</span> • GSTIN {gst.gstin}
+                      </div>
+                    )}
+
+                    <Separator className="my-2" />
+
+                    <div className="flex justify-between font-semibold text-base">
+                      <span>Total</span>
+                      <span>₹{pricing?.total ?? 0}</span>
+                    </div>
+                    <div className="text-xs text-gray-500">Inclusive of all taxes.</div>
+                  </div>
+                )}
+
+                {/* coupon */}
+                <div className="mt-4 flex gap-2">
+                  <Input
+                    placeholder="Have a coupon?"
+                    value={coupon}
+                    onChange={(e) => setCoupon(e.target.value)}
+                    disabled={couponApplying}
+                  />
+                  <Button onClick={applyCoupon} disabled={couponApplying}>
+                    {couponApplying ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Percent className="h-4 w-4 mr-1" />
+                        Apply
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {couponMeta?.message && (
+                  <p className="text-xs text-green-600 mt-2">{couponMeta.message}</p>
+                )}
+              </section>
+
+              <Button
+                className="w-full h-12 text-base font-semibold"
+                onClick={handlePlaceOrder}
+                disabled={placing || !pricing}
+              >
+                {placing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…
+                  </>
+                ) : (
+                  payCta
+                )}
+              </Button>
+
+              <div className="rounded-2xl border p-4 text-sm text-gray-600">
+                <div className="flex items-center gap-2 mb-2">
+                  <Gift className="h-4 w-4" /> <span>Returns & Support</span>
+                </div>
+                <ul className="list-disc ml-5 space-y-1">
+                  <li>Easy replacements for damaged products.</li>
+                  <li>Support via email within 24–48 hrs.</li>
+                  <li>GST invoice available for businesses.</li>
+                </ul>
+              </div>
+            </aside>
+          </div>
+        )}
 
         {/* Back to cart */}
-        <div className="mt-6 text-sm">
-          <Link to="/cart" className="text-green-700 hover:underline">
-            ← Back to Cart
-          </Link>
-        </div>
+        {!showEmpty && !loading && (
+          <div className="mt-6 text-sm">
+            <Link to="/cart" className="text-green-700 hover:underline">
+              ← Back to Cart
+            </Link>
+          </div>
+        )}
       </div>
       <Footer />
     </>

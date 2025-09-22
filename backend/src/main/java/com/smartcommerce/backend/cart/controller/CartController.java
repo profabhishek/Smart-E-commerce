@@ -3,6 +3,8 @@ package com.smartcommerce.backend.cart.controller;
 import com.smartcommerce.backend.cart.dto.CartItemDTO;
 import com.smartcommerce.backend.cart.dto.CartSummaryDTO;
 import com.smartcommerce.backend.cart.service.CartService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -34,9 +36,21 @@ public class CartController {
     }
 
     @DeleteMapping("/{userId}/remove")
-    public void removeFromCart(@PathVariable Long userId,
-                               @RequestParam Long productId) {
-        cartService.removeFromCart(userId, productId);
+    public ResponseEntity<Void> removeItem(
+            @PathVariable Long userId,
+            @RequestParam Long productId) {
+        try {
+            cartService.removeFromCart(userId, productId);  // your delete logic
+            return ResponseEntity.noContent().build(); // ✅ 204 No Content
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+
+    @DeleteMapping("/{userId}/clear")
+    public void clearCart(@PathVariable Long userId) {
+        cartService.clearCart(userId);
     }
 
 }

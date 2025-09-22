@@ -42,10 +42,10 @@ public class AuthController {
         // ✅ Use "user_jwt" instead of "jwt"
         ResponseCookie cookie = ResponseCookie.from("user_jwt", token)
                 .httpOnly(true)
-                .secure(false) // ⚠️ set true in production
+                .secure(true) // ⚠️ set true in production
                 .path("/")
                 .maxAge(24 * 60 * 60) // 1 day
-                .sameSite("Lax")
+                .sameSite("None")
                 .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
@@ -71,10 +71,10 @@ public class AuthController {
         // ✅ Expire only the "user_jwt" cookie
         ResponseCookie cookie = ResponseCookie.from("user_jwt", "")
                 .httpOnly(true)
-                .secure(false) // ⚠️ true in prod
+                .secure(true) // ⚠️ true in prod
                 .path("/")
                 .maxAge(0) // expire immediately
-                .sameSite("Lax")
+                .sameSite("None")
                 .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());

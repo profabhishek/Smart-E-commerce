@@ -75,11 +75,10 @@ public class AdminAuthController {
         // ✅ Put JWT in httpOnly cookie (admin_jwt)
         ResponseCookie cookie = ResponseCookie.from("admin_jwt", token)
                 .httpOnly(true)
-                .secure(false) // ⚠️ set true in production (HTTPS)
-                .domain("localhost")
+                .secure(true) // ⚠️ set true in production (HTTPS)
                 .path("/")
                 .maxAge(24 * 60 * 60) // 1 day
-                .sameSite("Lax")
+                .sameSite("None")
                 .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
@@ -120,11 +119,10 @@ public class AdminAuthController {
     public ResponseEntity<AuthResponse> logout() {
         ResponseCookie cookie = ResponseCookie.from("admin_jwt", "")
                 .httpOnly(true)
-                .secure(false)          // true in prod
-                .path("/")
-                .domain("localhost")    // must match login
+                .secure(true)          // true in prod
+                .path("/")             // must match login
                 .maxAge(0)              // expire immediately
-                .sameSite("Lax")
+                .sameSite("None")
                 .build();
 
         return ResponseEntity.ok()

@@ -23,6 +23,7 @@ public class Address {
     private String houseNo;
     private String landmark;
     private String pinCode; // ✅ Added pin code
+    private String type;
 
     // Many addresses belong to one user
     @ManyToOne(fetch = FetchType.LAZY)

@@ -5,6 +5,7 @@ import com.smartcommerce.backend.product.entity.ProductPhoto;
 import com.smartcommerce.backend.product.repository.ProductPhotoRepository;
 import com.smartcommerce.backend.product.repository.ProductRepository;
 import com.smartcommerce.backend.product.service.ProductService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +20,10 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/admin/products")
 public class AdminProductController {
+
+    // ✅ inject base URL from application.properties
+    @Value("${app.base-url}")
+    private String baseUrl;
 
     private final ProductService productService;
     private final ProductRepository productRepository;
@@ -62,7 +67,6 @@ public class AdminProductController {
     }
 
     // 📸 Upload product photos
-// 📸 Upload product photos
     @PostMapping("/{productId}/photos")
     public ResponseEntity<?> uploadProductPhotos(
             @PathVariable Long productId,
@@ -89,13 +93,13 @@ public class AdminProductController {
                 Files.createDirectories(path.getParent());
                 Files.write(path, file.getBytes());
 
-                // build public URL (with server host)
-                String url = "http://localhost:8082/uploads/productPhotos/" + filename;
+                // ✅ build public URL dynamically
+                String url = baseUrl + "/uploads/productPhotos/" + filename;
 
                 // save into DB
                 ProductPhoto photo = new ProductPhoto();
                 photo.setProduct(product);
-                photo.setPhoto_url(url);
+                photo.setPhotoUrl(url);
                 productPhotoRepository.save(photo);
 
                 urls.add(url);
@@ -130,7 +134,7 @@ public class AdminProductController {
 
         // delete file from server
         try {
-            Path path = Paths.get("uploads", photo.getPhoto_url().replace("/uploads/", ""));
+            Path path = Paths.get("uploads", photo.getPhotoUrl().replace("/uploads/", ""));
             Files.deleteIfExists(path);
         } catch (Exception e) {
             e.printStackTrace(); // log only
@@ -140,5 +144,4 @@ public class AdminProductController {
 
         return ResponseEntity.ok(Map.of("message", "Photo deleted"));
     }
-
 }

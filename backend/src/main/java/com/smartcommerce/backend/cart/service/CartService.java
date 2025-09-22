@@ -35,7 +35,7 @@ public class CartService {
         User user = userRepo.getReferenceById(userId);
         Product product = productRepo.getReferenceById(productId);
 
-        CartItem item = cartRepo.findByUserIdAndProductId(userId, productId)
+        CartItem item = cartRepo.findByUser_IdAndProduct_Id(userId, productId)
                 .orElseGet(() -> {
                     CartItem ci = new CartItem();
                     ci.setUser(user);
@@ -53,14 +53,14 @@ public class CartService {
     // ✅ Remove product
     @Transactional
     public void removeFromCart(Long userId, Long productId) {
-        cartRepo.findByUserIdAndProductId(userId, productId)
+        cartRepo.findByUser_IdAndProduct_Id(userId, productId)
                 .ifPresent(cartRepo::delete);
     }
 
     // ✅ Update quantity
     @Transactional
     public CartItemDTO updateQuantity(Long userId, Long productId, int quantity) {
-        CartItem item = cartRepo.findByUserIdAndProductId(userId, productId)
+        CartItem item = cartRepo.findByUser_IdAndProduct_Id(userId, productId)
                 .orElseThrow(() -> new RuntimeException("Item not found in cart"));
 
         if (quantity <= 0) {
@@ -75,11 +75,16 @@ public class CartService {
 
     // ✅ Get user’s cart (with summary)
     public CartSummaryDTO getCart(Long userId) {
-        List<CartItemDTO> items = cartRepo.findByUserId(userId)
+        List<CartItemDTO> items = cartRepo.findByUser_Id(userId)
                 .stream()
                 .map(CartItemDTO::new)
                 .toList();
 
         return new CartSummaryDTO(items);
     }
+
+    public void clearCart(Long userId) {
+        cartRepo.deleteByUser_Id(userId);  // or deleteAllByUserId(userId) if you used @Query
+    }
+
 }

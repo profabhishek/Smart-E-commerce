@@ -2,12 +2,16 @@ package com.smartcommerce.backend.product.repository;
 
 import com.smartcommerce.backend.product.entity.Product;
 import com.smartcommerce.backend.product.entity.Category;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.*;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
+import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
+@Repository
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
     // 🔑 Find by SKU
@@ -27,4 +31,9 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     // 🔍 Find products with discount
     List<Product> findByDiscountPriceIsNotNull();
+
+    // ⚡️ New: lock a product row when updating stock (to prevent overselling)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Product p where p.id = :id")
+    Optional<Product> findByIdForUpdate(@Param("id") Long id);
 }
