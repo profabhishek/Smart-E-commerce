@@ -3,6 +3,10 @@ package com.smartcommerce.backend.order.service;
 import com.smartcommerce.backend.auth.entity.User;
 import com.smartcommerce.backend.auth.repository.UserRepository;
 import com.smartcommerce.backend.cart.repository.CartItemRepository;
+import com.smartcommerce.backend.order.dto.OrderItemDTO;
+import com.smartcommerce.backend.order.dto.OrderResponse;
+import com.smartcommerce.backend.order.dto.PaymentDTO;
+import com.smartcommerce.backend.order.dto.ShippingAddressDTO;
 import com.smartcommerce.backend.order.entity.Order;
 import com.smartcommerce.backend.order.entity.OrderItem;
 import com.smartcommerce.backend.order.entity.Payment;
@@ -15,6 +19,7 @@ import com.smartcommerce.backend.product.repository.ProductPhotoRepository;
 import com.smartcommerce.backend.product.repository.ProductRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -172,6 +177,7 @@ public class OrderService {
             throw new AccessDeniedException("Not your order");
         }
 
+        // If already terminal, return as-is
         if (order.getStatus() == Order.OrderStatus.CANCELLED
                 || order.getStatus() == Order.OrderStatus.REFUNDED) {
             return order;
@@ -180,23 +186,41 @@ public class OrderService {
             throw new RuntimeException("Order cannot be cancelled after delivery");
         }
 
+        // Mark cancelled immediately
         order.setStatus(Order.OrderStatus.CANCELLED);
         order.setUpdatedAt(Instant.now());
         orderRepo.save(order);
 
         paymentRepo.findByOrder_Id(orderId).ifPresent(payment -> {
-            boolean isCaptured = payment.getStatus() == Payment.PaymentStatus.CAPTURED;
-            boolean hasPaymentId = payment.getRazorpayPaymentId() != null && !payment.getRazorpayPaymentId().isBlank();
+            boolean captured = payment.getStatus() == Payment.PaymentStatus.CAPTURED
+                    && payment.getRazorpayPaymentId() != null
+                    && !payment.getRazorpayPaymentId().isBlank();
 
-            if (isCaptured && hasPaymentId) {
+            if (!captured) return;
+
+            // If already refunded, reflect it on order
+            if (payment.getStatus() == Payment.PaymentStatus.REFUNDED
+                    || "PROCESSED".equalsIgnoreCase(payment.getRefundStatus())) {
+                order.setStatus(Order.OrderStatus.REFUNDED);
+                orderRepo.save(order);
+                return;
+            }
+
+            // If refund already initiated and not failed, keep pending
+            if (payment.getRefundId() != null
+                    && !"FAILED".equalsIgnoreCase(payment.getRefundStatus())) {
                 order.setStatus(Order.OrderStatus.REFUND_PENDING);
                 orderRepo.save(order);
-                paymentService.initiateRefund(order, payment);
+                return;
             }
+
+            // Otherwise, initiate (idempotent) refund
+            paymentService.initiateRefund(order, payment);
         });
 
-        return order;  // 🔥 return latest state
+        return order;
     }
+
 
     public List<Order> getOrdersByUser(User user) {
         return orderRepo.findByUser_Id(user.getId());
@@ -205,4 +229,5 @@ public class OrderService {
     public List<Order> getOrdersByUserId(Long userId) {
         return orderRepo.findByUser_Id(userId);
     }
+
 }

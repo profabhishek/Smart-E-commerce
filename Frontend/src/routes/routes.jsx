@@ -21,6 +21,7 @@ import UserManagement from "../pages/admin/dashboard/UserManagement";
 import CheckoutPage from "../pages/checkout/CheckoutPage";
 import OrderSuccessPage from "../pages/order/OrderSuccessPage";
 import MyOrdersPage from "../pages/order/MyOrdersPage";
+import OrderDetailsPage from "../pages/order/OrderDetailsPage";
 
 const router = createBrowserRouter([
   {
@@ -52,6 +53,7 @@ const router = createBrowserRouter([
       { path: "/cart", element: <CartPage /> },
       { path: "/order-details", element: <OrderSuccessPage /> },
       { path: "/my-orders", element: <MyOrdersPage /> },
+      { path: "/orders/:id", element: <OrderDetailsPage /> },
       { path: "*", element: <RouterErrorBoundary /> },
     ],
   },

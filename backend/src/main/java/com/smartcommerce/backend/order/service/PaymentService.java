@@ -178,8 +178,29 @@ public class PaymentService {
     // ---------------- INITIATE REFUND (called from OrderService.cancelOrder) ----------------
     @Transactional
     public void initiateRefund(Order order, Payment payment) {
+        // 0) If already refunded → just reflect that on order and exit
+        if (payment.getStatus() == PaymentStatus.REFUNDED
+                || "PROCESSED".equalsIgnoreCase(payment.getRefundStatus())) {
+            payment.setRefundStatus("PROCESSED");
+            paymentRepo.save(payment);
+            order.setStatus(Order.OrderStatus.REFUNDED);
+            orderRepo.save(order);
+            return;
+        }
+
+        // 1) If a refund is already in-flight (not FAILED) → do not create again
+        if (payment.getRefundId() != null && !"FAILED".equalsIgnoreCase(payment.getRefundStatus())) {
+            order.setStatus(Order.OrderStatus.REFUND_PENDING);
+            orderRepo.save(order);
+            return;
+        }
+
+        // 2) Nothing to refund
         if (payment.getStatus() != PaymentStatus.CAPTURED
-                || payment.getRazorpayPaymentId() == null) return;
+                || payment.getRazorpayPaymentId() == null
+                || payment.getRazorpayPaymentId().isBlank()) {
+            return;
+        }
 
         try {
             RazorpayClient client = razorpay();
@@ -192,17 +213,29 @@ public class PaymentService {
 
             // Save refund attempt
             payment.setRefundId(refund.get("id"));
-            payment.setRefundStatus("PENDING");  // <-- force pending here
+            payment.setRefundStatus("PENDING");
             payment.setRefundAmount(payment.getAmount());
             paymentRepo.save(payment);
 
-            order.setStatus(Order.OrderStatus.REFUND_PENDING); // always pending until webhook
+            order.setStatus(Order.OrderStatus.REFUND_PENDING);
             orderRepo.save(order);
 
         } catch (Exception e) {
-            throw new RuntimeException("Refund initiation failed: " + e.getMessage(), e);
+            String msg = e.getMessage() == null ? "" : e.getMessage();
+            // If Razorpay says "fully refunded already", normalize state and return
+            if (msg.toLowerCase().contains("fully refunded")) {
+                payment.setRefundStatus("PROCESSED");
+                payment.setStatus(PaymentStatus.REFUNDED);
+                paymentRepo.save(payment);
+
+                order.setStatus(Order.OrderStatus.REFUNDED);
+                orderRepo.save(order);
+                return;
+            }
+            throw new RuntimeException("Refund initiation failed: " + msg, e);
         }
     }
+
 
     // ---------------- WEBHOOK HELPERS ----------------
     @Transactional

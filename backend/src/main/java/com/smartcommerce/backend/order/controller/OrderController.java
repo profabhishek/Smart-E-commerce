@@ -2,9 +2,13 @@ package com.smartcommerce.backend.order.controller;
 
 import com.smartcommerce.backend.auth.entity.User;
 import com.smartcommerce.backend.auth.repository.UserRepository;
+import com.smartcommerce.backend.order.dto.OrderMapper;
 import com.smartcommerce.backend.order.dto.OrderRequest;
+import com.smartcommerce.backend.order.dto.OrderResponse;
 import com.smartcommerce.backend.order.entity.Order;
+import com.smartcommerce.backend.order.entity.Payment;
 import com.smartcommerce.backend.order.repository.OrderRepository;
+import com.smartcommerce.backend.order.repository.PaymentRepository;
 import com.smartcommerce.backend.order.service.OrderService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,13 +28,19 @@ public class OrderController {
     private final OrderService orderService;
     private final UserRepository userRepo;
     private final OrderRepository orderRepo;
+    private final OrderMapper orderMapper;
+    private final PaymentRepository paymentRepo;
 
     public OrderController(OrderService orderService,
                            UserRepository userRepo,
-                           OrderRepository orderRepo) {
+                           OrderRepository orderRepo,
+                           OrderMapper orderMapper,
+                           PaymentRepository paymentRepo) {
         this.orderService = orderService;
         this.userRepo = userRepo;
         this.orderRepo = orderRepo;
+        this.orderMapper = orderMapper;
+        this.paymentRepo = paymentRepo;
     }
 
     private User currentUser(Authentication auth) {
@@ -41,10 +51,16 @@ public class OrderController {
 
     // ✅ Get full order by ID (ownership enforced; 403 vs 404)
     @GetMapping("/{id}")
-    public Order getOrderById(@PathVariable Long id, Authentication auth) {
+    public OrderResponse getOrderById(@PathVariable Long id, Authentication auth) {
         User me = currentUser(auth);
-        return orderService.getOrderForUserStrict(id, me.getId());
+        Order order = orderService.getOrderForUserStrict(id, me.getId());
+
+        // fetch payment (may not exist yet)
+        Payment payment = paymentRepo.findByOrder_Id(order.getId()).orElse(null);
+
+        return orderMapper.toDto(order, payment);
     }
+
 
     // ✅ Get only status (lighter response; ownership enforced)
     @GetMapping("/{id}/status")

@@ -1,12 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Clock, XCircle } from "lucide-react";
+import { Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog"; // ✅ shadcn/ui dialog
 import Header from "../Home/Header";
 import Footer from "../Home/Footer";
 
@@ -17,9 +16,10 @@ export default function MyOrdersPage() {
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [selectedOrderId, setSelectedOrderId] = useState(null);
-  const [processing, setProcessing] = useState(false);
+
+  // ✅ pagination state
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   // --- fetch orders ---
   useEffect(() => {
@@ -30,7 +30,12 @@ export default function MyOrdersPage() {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-        setOrders(data);
+
+        // ✅ sort latest first
+        const sorted = [...data].sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        setOrders(sorted);
       } catch (e) {
         console.error("Failed to fetch orders:", e);
       } finally {
@@ -39,39 +44,12 @@ export default function MyOrdersPage() {
     })();
   }, [userId, token]);
 
-  // --- cancel order ---
-  const cancelOrder = async (orderId) => {
-    setProcessing(true);
-    try {
-      const res = await fetch(`${BASE_URL}/api/orders/${orderId}/cancel`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) {
-        const error = await res.text();
-        throw new Error(error || "Cancel failed");
-      }
-
-      const result = await res.json();
-
-      // ✅ Optimistic state update
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === orderId
-            ? { ...o, status: result.status || result.orderStatus || "CANCELLED" }
-            : o
-        )
-      );
-    } catch (e) {
-      console.error(e);
-      alert("Could not cancel order: " + e.message);
-    } finally {
-      setProcessing(false);
-      setConfirmOpen(false);
-      setSelectedOrderId(null);
-    }
-  };
+  // ✅ pagination calculation
+  const totalPages = Math.ceil(orders.length / pageSize);
+  const paginatedOrders = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return orders.slice(start, start + pageSize);
+  }, [orders, page]);
 
   return (
     <>
@@ -80,7 +58,6 @@ export default function MyOrdersPage() {
         <h1 className="text-2xl font-bold mb-6">My Orders</h1>
 
         {loading ? (
-          // Skeleton loader (same as before) ...
           <div className="space-y-6">
             {[1, 2, 3].map((i) => (
               <Card key={i} className="shadow-sm">
@@ -125,92 +102,76 @@ export default function MyOrdersPage() {
           </p>
         ) : (
           <div className="space-y-6">
-            {orders.map((order) => {
-              const canCancel = [
-                "DRAFT",
-                "PAYMENT_PENDING",
-                "PAID",
-                "CONFIRMED",
-                "PACKED",
-              ].includes(order.status);
+            {paginatedOrders.map((order) => (
+              <Card key={order.id} className="shadow-sm">
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <CardTitle>Order #{order.id}</CardTitle>
+                    <Badge
+                      className={
+                        order.status === "DELIVERED"
+                          ? "bg-green-600"
+                          : order.status === "CANCELLED"
+                          ? "bg-red-600"
+                          : "bg-yellow-600"
+                      }
+                    >
+                      {order.status}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    Placed on{" "}
+                    {new Date(order.createdAt).toLocaleDateString()} — Total: ₹
+                    {(order.totalPayable / 100).toFixed(2)}
+                  </p>
+                </CardHeader>
 
-              return (
-                <Card key={order.id} className="shadow-sm">
-                  <CardHeader>
-                    <div className="flex justify-between items-center">
-                      <CardTitle>Order #{order.id}</CardTitle>
-                      <Badge
-                        className={
-                          order.status === "DELIVERED"
-                            ? "bg-green-600"
-                            : order.status === "CANCELLED"
-                            ? "bg-red-600"
-                            : "bg-yellow-600"
-                        }
-                      >
-                        {order.status}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-gray-500">
-                      Placed on {new Date(order.createdAt).toLocaleDateString()} — Total: ₹
-                      {(order.totalPayable / 100).toFixed(2)}
-                    </p>
-                  </CardHeader>
+                <CardContent>
+                  <Separator className="my-4" />
+                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <Clock className="h-4 w-4" />
+                    <p>Track status: {order.status}</p>
+                  </div>
 
-                  <CardContent>
-                    <Separator className="my-4" />
-                    <div className="flex items-center gap-4 text-sm text-gray-600">
-                      <Clock className="h-4 w-4" />
-                      <p>Track status: {order.status}</p>
-                    </div>
+                  <div className="mt-3 flex gap-3">
+                    <Button variant="outline" asChild>
+                      <Link to={`/orders/${order.id}`}>View Details</Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
 
-                    <div className="mt-3 flex gap-3">
-                      <Button variant="outline" asChild>
-                        <Link to={`/orders/${order.id}`}>View Details</Link>
-                      </Button>
-
-                      {canCancel && (
-                        <Button
-                          variant="destructive"
-                          onClick={() => {
-                            setSelectedOrderId(order.id);
-                            setConfirmOpen(true);
-                          }}
-                        >
-                          <XCircle className="h-4 w-4 mr-1" /> Cancel Order
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {/* ✅ pagination controls */}
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center gap-4 mt-6">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm font-medium">
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === totalPages}
+                  onClick={() =>
+                    setPage((p) => Math.min(p + 1, totalPages))
+                  }
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </main>
       <Footer />
-
-      {/* ✅ Confirmation Modal */}
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel Order</DialogTitle>
-          </DialogHeader>
-          <p>Are you sure you want to cancel this order?</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-              No, go back
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => cancelOrder(selectedOrderId)}
-              disabled={processing}
-            >
-              {processing ? "Cancelling..." : "Yes, Cancel Order"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
