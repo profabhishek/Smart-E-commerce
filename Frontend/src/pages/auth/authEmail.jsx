@@ -13,20 +13,25 @@ export default function AuthEmail() {
     let cancelled = false;
 
     const checkSession = async () => {
-      const role = localStorage.getItem("user_role");
-      if (role === "ROLE_USER") {
-        navigate("/", { replace: true });
-        return;
+      const token = localStorage.getItem("user_token");
+      if (!token) {
+        setCheckingSession(false);
+        return; // not logged in → stay on login page
       }
 
       try {
         const res = await fetch(`${VITE_API_BASE_URL}/api/user/profile`, {
           method: "GET",
-          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`, // ✅ use stored token
+          },
         });
 
         if (!cancelled && res.ok) {
           const user = await res.json();
+
+          // ✅ save/update session details
           localStorage.setItem("user_role", "ROLE_USER");
           if (user?.name && user.name.trim()) {
             localStorage.setItem("user_name", user.name);
@@ -35,11 +40,13 @@ export default function AuthEmail() {
           } else {
             localStorage.setItem("user_name", "User");
           }
+
+          // ✅ redirect home
           navigate("/", { replace: true });
           return;
         }
-      } catch {
-        // ignore
+      } catch (err) {
+        console.warn("Session check failed:", err);
       } finally {
         if (!cancelled) setCheckingSession(false);
       }
@@ -49,7 +56,7 @@ export default function AuthEmail() {
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  }, [navigate, VITE_API_BASE_URL]);
 
   const handleSend = async () => {
     const cleanEmail = email.trim();
@@ -64,7 +71,6 @@ export default function AuthEmail() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: cleanEmail }),
-        credentials: "include",
       });
 
       if (!res.ok) {
@@ -136,9 +142,7 @@ export default function AuthEmail() {
 
         {/* Footer Note */}
         <p className="mt-6 text-center text-xs text-gray-400">
-          By continuing, you agree to our{" "}
-            Terms of Service{" "}and{" "}Privacy Policy
-          .
+          By continuing, you agree to our Terms of Service and Privacy Policy.
         </p>
       </div>
     </div>

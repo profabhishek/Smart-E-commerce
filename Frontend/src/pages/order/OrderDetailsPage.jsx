@@ -45,6 +45,7 @@ const STATUS_STEPS = [
   "DELIVERED",
 ];
 const statusIndex = (s) => Math.max(STATUS_STEPS.indexOf(s || ""), 0);
+
 const stepLabel = (s) => ({
   DRAFT: "Placed",
   PAYMENT_PENDING: "Payment Pending",
@@ -56,14 +57,20 @@ const stepLabel = (s) => ({
   DELIVERED: "Delivered",
   CANCELLED: "Cancelled",
   RETURNED: "Returned",
+  REFUND_INITIATED: "Refund Initiated",
+  REFUNDED: "Refunded",
 }[s] || s || "Status");
+
 const pillClass = (s) => {
   if (s === "DELIVERED") return "bg-green-600";
   if (s === "CANCELLED") return "bg-red-600";
   if (s === "RETURNED") return "bg-rose-600";
+  if (s === "REFUND_INITIATED") return "bg-yellow-600";
+  if (s === "REFUNDED") return "bg-emerald-600";
   if (["PAID","CONFIRMED","PACKED","SHIPPED","OUT_FOR_DELIVERY"].includes(s)) return "bg-emerald-700";
   return "bg-yellow-600";
 };
+
 const copyToClipboard = async (text) => {
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 };
@@ -225,21 +232,43 @@ export default function OrderDetailsPage() {
   );
 
   const StatusStepper = ({ status }) => {
+    const terminal = ["CANCELLED", "RETURNED", "REFUND_INITIATED", "REFUNDED"];
+    const upper = (status || "").toUpperCase();
+
+    if (terminal.includes(upper)) {
+      return (
+        <div className="flex items-center gap-2">
+          {/* <Badge className={pillClass(upper)}>{stepLabel(upper)}</Badge>
+          <span className="text-xs text-muted-foreground">({stepLabel(upper)})</span> */}
+        </div>
+      );
+    }
+
     const active = statusIndex(status);
-    const steps = STATUS_STEPS.map((s, idx) => ({ key: s, label: stepLabel(s), active: idx <= active }));
+    const steps = STATUS_STEPS.map((s, idx) => ({
+      key: s,
+      label: stepLabel(s),
+      active: idx <= active
+    }));
+
     return (
       <div className="relative">
         <div className="hidden md:grid grid-cols-8 gap-2">
           {steps.map((st) => (
             <div key={st.key} className="flex flex-col items-center">
-              <motion.div layout className={`h-2 w-full rounded ${st.active ? "bg-emerald-500" : "bg-muted"}`} />
+              <motion.div
+                layout
+                className={`h-2 w-full rounded ${st.active ? "bg-emerald-500" : "bg-muted"}`}
+              />
               <div className="mt-2 text-xs text-muted-foreground">{st.label}</div>
             </div>
           ))}
         </div>
         <div className="md:hidden flex items-center gap-2">
           <Badge className={pillClass(status)}>{stepLabel(status)}</Badge>
-          <span className="text-xs text-muted-foreground">({active+1}/{STATUS_STEPS.length})</span>
+          <span className="text-xs text-muted-foreground">
+            ({active + 1}/{STATUS_STEPS.length})
+          </span>
         </div>
       </div>
     );

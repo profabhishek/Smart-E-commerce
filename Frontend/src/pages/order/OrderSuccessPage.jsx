@@ -32,11 +32,26 @@ export default function OrderSuccessPage() {
   // trigger confetti only once
   const hasConfettied = useRef(false);
 
-      useEffect(() => {
-        if (order) {
-        console.log("📦 Order API response:", order);
+  // poll every 30s until order is terminal
+  useEffect(() => {
+    if (!order) return;
+    const terminal = ["DELIVERED","CANCELLED","RETURNED"];
+    if (terminal.includes(order.status)) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/api/orders/${orderId}/status`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const statusText = await res.text();
+          setOrder(prev => prev ? { ...prev, status: statusText || prev.status } : prev);
         }
-    }, [order]);
+      } catch {}
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [order, orderId, BASE_URL, token]);
 
     useEffect(() => {
       if (!orderId) {
@@ -433,22 +448,52 @@ function HeroSuccess({ orderId }) {
 }
 
 function buildTimeline(status) {
-  // Map backend order statuses to a friendly 6-step timeline
+  // Base happy flow
   const steps = [
-    { key: "PLACED", title: "Order placed", hint: "We've received your order.", done: true },
-    { key: "PAID", title: "Payment received", hint: "Your payment was successful.", done: false },
-    { key: "PROCESSING", title: "Packed", hint: "We're packing your items.", done: false },
-    { key: "SHIPPED", title: "Shipped", hint: "Handed over to the courier.", done: false },
-    { key: "OUT_FOR_DELIVERY", title: "Out for delivery", hint: "Arriving soon.", done: false },
-    { key: "DELIVERED", title: "Delivered", hint: "Package received.", done: false },
+    { key: "DRAFT",            title: "Placed",           hint: "We've received your order.", done: false },
+    { key: "PAYMENT_PENDING",  title: "Payment pending",  hint: "Waiting for payment confirmation.", done: false },
+    { key: "PAID",             title: "Paid",             hint: "Your payment was successful.", done: false },
+    { key: "CONFIRMED",        title: "Confirmed",        hint: "Your order has been confirmed.", done: false },
+    { key: "PACKED",           title: "Packed",           hint: "We're packing your items.", done: false },
+    { key: "SHIPPED",          title: "Shipped",          hint: "Handed over to the courier.", done: false },
+    { key: "OUT_FOR_DELIVERY", title: "Out for delivery", hint: "Your package is on its way.", done: false },
+    { key: "DELIVERED",        title: "Delivered",        hint: "Package received.", done: false },
   ];
 
-  const order = ["PLACED","PAID","PROCESSING","SHIPPED","OUT_FOR_DELIVERY","DELIVERED"];
-  const idx = Math.max(0, order.indexOf((status || "PAID").toUpperCase()));
+  const flow = steps.map(s => s.key);
+  const idx = flow.indexOf((status || "").toUpperCase());
 
-  return steps.map((s, i) => ({ ...s, done: i <= idx }));
+  // mark steps as done
+  if (idx >= 0) {
+    steps.forEach((s, i) => {
+      if (i <= idx) s.done = true;
+    });
+    return steps;
+  }
+
+  // Handle terminal states outside normal flow
+  switch ((status || "").toUpperCase()) {
+    case "CANCELLED":
+      return [
+        { key: "CANCELLED", title: "Cancelled", hint: "This order has been cancelled.", done: true, isFinal: true }
+      ];
+    case "RETURNED":
+      return [
+        { key: "RETURNED", title: "Returned", hint: "This order has been returned.", done: true, isFinal: true }
+      ];
+    case "REFUND_INITIATED":
+      return [
+        { key: "REFUND_INITIATED", title: "Refund initiated", hint: "Refund process has started.", done: true, isFinal: true }
+      ];
+    case "REFUNDED":
+      return [
+        { key: "REFUNDED", title: "Refunded", hint: "Your payment has been refunded.", done: true, isFinal: true }
+      ];
+    default:
+      return steps; // fallback: show all steps as false
+  }
 }
-
+  
 function RowSkeleton() {
   return (
     <div className="flex justify-between">

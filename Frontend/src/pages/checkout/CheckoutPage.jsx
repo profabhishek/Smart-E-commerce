@@ -254,7 +254,7 @@ export default function CheckoutPage() {
         setCart(null);
 
         toast.success("Order placed (COD)!");
-        navigate(`/order-details?orderId=${order.id}`, { state: { orderId: order.id } });
+        navigate(`/order-success?orderId=${order.id}`, { state: { orderId: order.id } });
         return;
       }
 

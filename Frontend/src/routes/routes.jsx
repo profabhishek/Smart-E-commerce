@@ -52,7 +52,7 @@ const router = createBrowserRouter([
       { path: "/admin/users", element: <UserManagement /> },
       { path: "/checkout", element: <CheckoutPage /> },
       { path: "/cart", element: <CartPage /> },
-      { path: "/order-details", element: <OrderSuccessPage /> },
+      { path: "/order-success", element: <OrderSuccessPage /> },
       { path: "/my-orders", element: <MyOrdersPage /> },
       { path: "/orders/:id", element: <OrderDetailsPage /> },
       { path: "/admin/orders", element: <OrdersManagement /> },
