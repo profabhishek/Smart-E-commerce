@@ -4,7 +4,9 @@ import com.smartcommerce.backend.auth.entity.User;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 @Entity
 @Table(name = "orders")
@@ -19,7 +21,7 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
@@ -29,25 +31,41 @@ public class Order {
     @Embedded
     private ShippingAddress shippingAddress;
 
-    private Long subtotal;      // in paise
-    private Long shippingFee;   // in paise
-    private Long codFee;        // in paise
-    private Long discount;      // in paise
-    private Long totalPayable;  // in paise
+    // amounts in paise (minor units)
+    private Long subtotal;
+    private Long shippingFee;
+    private Long codFee;
+    private Long discount;
+    private Long totalPayable;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
     private OrderStatus status;
 
     private String razorpayOrderId;
 
+    @Column(nullable = false, updatable = false)
     private Instant createdAt;
+
+    @Column(nullable = false)
     private Instant updatedAt;
 
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    /**
+     * Important:
+     *  - cascade = ALL + orphanRemoval = true => replacing list or deleting order cleans children
+     *  - LAZY to avoid huge eager graphs on lists
+     */
+    @OneToMany(
+            mappedBy = "order",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.LAZY
+    )
     private List<OrderItem> items = new ArrayList<>();
 
-    // --- Getters and setters ---
+    // --- Getters / Setters ---
     public Long getId() { return id; }
+
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
 
@@ -90,10 +108,12 @@ public class Order {
     public List<OrderItem> getItems() { return items; }
     public void setItems(List<OrderItem> items) { this.items = items; }
 
+    // --- Lifecycle ---
     @PrePersist
     protected void onCreate() {
-        this.createdAt = Instant.now();
-        this.updatedAt = Instant.now();
+        final Instant now = Instant.now();
+        this.createdAt = now;
+        this.updatedAt = now;
         if (this.status == null) {
             this.status = OrderStatus.DRAFT;
         }
@@ -102,6 +122,51 @@ public class Order {
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = Instant.now();
+    }
+
+    // --- Domain helpers (make controller/service code simpler & safer) ---
+    public void addItem(OrderItem item) {
+        if (item == null) return;
+        items.add(item);
+        item.setOrder(this);
+    }
+
+    public void removeItem(OrderItem item) {
+        if (item == null) return;
+        items.remove(item);
+        item.setOrder(null);
+    }
+
+    /** Replace list in a way that triggers orphanRemoval correctly. */
+    public void replaceItems(List<OrderItem> newItems) {
+        // Remove items that are not in new list
+        Iterator<OrderItem> it = items.iterator();
+        while (it.hasNext()) {
+            OrderItem existing = it.next();
+            if (newItems == null || newItems.stream().noneMatch(n -> equalsByBusinessKey(n, existing))) {
+                it.remove();                 // triggers orphanRemoval
+                existing.setOrder(null);
+            }
+        }
+        // Add or update items
+        if (newItems != null) {
+            for (OrderItem n : newItems) {
+                n.setOrder(this);
+                // just add; duplicates by business key can be handled by UI or validation if needed
+                if (!items.contains(n)) {
+                    items.add(n);
+                }
+            }
+        }
+    }
+
+    // Business-key equality for replaceItems (productId + productName + price + qty + photo)
+    private boolean equalsByBusinessKey(OrderItem a, OrderItem b) {
+        return Objects.equals(a.getProductId(), b.getProductId())
+                && Objects.equals(a.getProductName(), b.getProductName())
+                && Objects.equals(a.getPrice(), b.getPrice())
+                && Objects.equals(a.getQuantity(), b.getQuantity())
+                && Objects.equals(a.getProductPhoto(), b.getProductPhoto());
     }
 
     public boolean isDeliveredOrBeyond() {

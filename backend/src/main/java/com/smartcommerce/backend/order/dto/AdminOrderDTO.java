@@ -13,7 +13,8 @@ public class AdminOrderDTO {
     public Long userId;
     public String customerName;
     public String phone;
-    public ShippingAddress shippingAddress;
+
+    public ShippingAddressDTO shippingAddress;
 
     public Long subtotal;
     public Long shippingFee;
@@ -29,13 +30,15 @@ public class AdminOrderDTO {
 
     public List<OrderItemDTO> items;
 
+    // ---- Mapper ----
     public static AdminOrderDTO from(Order o) {
         AdminOrderDTO dto = new AdminOrderDTO();
         dto.id = o.getId();
         dto.userId = o.getUser().getId();
         dto.customerName = o.getCustomerName();
         dto.phone = o.getPhone();
-        dto.shippingAddress = o.getShippingAddress();
+
+        dto.shippingAddress = ShippingAddressDTO.from(o.getShippingAddress());
 
         dto.subtotal = o.getSubtotal();
         dto.shippingFee = o.getShippingFee();
@@ -54,6 +57,32 @@ public class AdminOrderDTO {
                 .collect(Collectors.toList());
 
         return dto;
+    }
+
+    // ---- Nested DTOs ----
+    public static class ShippingAddressDTO {
+        public String houseNo;
+        public String area;
+        public String landmark;
+        public String city;
+        public String state;
+        public String country;
+        public String pinCode;
+        public String type;
+
+        public static ShippingAddressDTO from(ShippingAddress sa) {
+            if (sa == null) return null;
+            ShippingAddressDTO dto = new ShippingAddressDTO();
+            dto.houseNo = sa.getHouseNo();
+            dto.area = sa.getArea();
+            dto.landmark = sa.getLandmark();
+            dto.city = sa.getCity();
+            dto.state = sa.getState();
+            dto.country = sa.getCountry();
+            dto.pinCode = sa.getPinCode();
+            dto.type = sa.getType();
+            return dto;
+        }
     }
 
     public static class OrderItemDTO {

@@ -23,14 +23,17 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     // 🔍 Combine filters (with pagination)
     @Query("select o from Order o " +
-            "where (:status is null or o.status = :status) " +
-            "and (:start is null or o.createdAt >= :start) " +
-            "and (:end is null or o.createdAt <= :end) " +
-            "and (:userId is null or o.user.id = :userId)")
+            "where (:orderId is not null and o.id = :orderId) " +
+            "or (:orderId is null and " +
+            "     (:status is null or o.status = :status) " +
+            " and (:start is null or o.createdAt >= :start) " +
+            " and (:end is null or o.createdAt <= :end) " +
+            " and (:userId is null or o.user.id = :userId))")
     Page<Order> filterOrders(@Param("status") Order.OrderStatus status,
                              @Param("start") Instant start,
                              @Param("end") Instant end,
                              @Param("userId") Long userId,
+                             @Param("orderId") Long orderId,
                              Pageable pageable);
 
     // ✅ Ownership-enforced lookup
