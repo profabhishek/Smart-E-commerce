@@ -474,7 +474,6 @@ export default function AdminDashboard() {
         <StatCard
           title={`Total Revenue (${stats.window})`}
           value={`₹${(stats.revenue.current / 100).toLocaleString()}`}
-          icon={<IndianRupee />}
           change={stats.revenue.change}
         />
         <StatCard
